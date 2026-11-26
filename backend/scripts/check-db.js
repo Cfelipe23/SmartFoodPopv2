@@ -2,8 +2,8 @@
 // Uso: npm run db:check   (desde la carpeta backend o desde la raíz: npm --prefix backend run db:check)
 require('dotenv').config();
 
-const env = require('../src/config/env');
-const { PostgresPersistence, describeDbError } = require('../src/data/PostgresPersistence');
+const env = require('../dist/config/env');
+const { PostgresPersistence, describeDbError } = require('../dist/data/PostgresPersistence');
 
 async function main() {
   const persistence = PostgresPersistence.fromEnv(env);

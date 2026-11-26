@@ -32,17 +32,17 @@
 
 ### 1.2 Stack permitido (restricción 7.1 del alcance)
 
-React + JavaScript (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · GitHub. Cualquier dependencia o tecnología nueva requiere justificarla y que el equipo la apruebe.
+React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · GitHub. El equipo aprobó TypeScript para el backend y el frontend el 26-nov-2026. La migración empezó por el backend y continúa por grupos en el frontend. Esta decisión actualiza el stack de trabajo respecto a la sección 7.1 del alcance original. Cualquier otra dependencia o tecnología nueva requiere justificarla y que el equipo la apruebe.
 
 ### 1.3 Principios
 
 - **Capas con una sola responsabilidad (SOLID).** Ruta → middleware → controlador → servicio → repositorio → persistencia. Las validaciones de negocio van en los **servicios**, no en los controladores.
-- **Inyección de dependencias.** Todo se construye en `backend/src/container.js` (*composition root*). Un servicio recibe sus colaboradores por constructor; nunca hace `require` de otro servicio ni crea repositorios por su cuenta.
+- **Inyección de dependencias.** Todo se construye en `backend/src/container.ts` (*composition root*). Un servicio recibe sus colaboradores por constructor; nunca hace `require` de otro servicio ni crea repositorios por su cuenta.
 - **Dominio puro.** `backend/src/domain/` no hace E/S: recibe datos y devuelve datos. Ahí va la lógica que se puede probar sin servidor.
 - **KISS / YAGNI.** Elige la solución más simple que cumpla el criterio de aceptación. Nada de abstracciones «por si acaso».
 - **Bajo acoplamiento.** Si añadir una función obliga a modificar código no relacionado que ya funcionaba, repórtalo antes de seguir.
-- **Errores.** Los servicios lanzan `httpError(status, mensaje)` (`domain/httpError.js`) o `AuthError`. La API siempre responde `{ "error": "mensaje" }` con el código adecuado (400, 401, 403, 404, 409).
-- **Frontend.** Los componentes no llaman a `fetch`: usan los hooks (`hooks/`), y estos usan `api/*` sobre el cliente único `api/httpClient.js`. La interfaz muestra lo que **el servidor confirmó**: nada de datos simulados ni actualizaciones optimistas que no se reviertan.
+- **Errores.** Los servicios lanzan `httpError(status, mensaje)` (`domain/httpError.ts`) o `AuthError`. La API siempre responde `{ "error": "mensaje" }` con el código adecuado (400, 401, 403, 404, 409).
+- **Frontend.** Los componentes usan los hooks (`hooks/`) y las llamadas a la API pasan por `api/httpClient.ts`. La interfaz muestra lo que **el servidor confirmó**: nada de datos simulados ni actualizaciones optimistas que no se reviertan.
 - **Interfaz accesible.** Botones con `aria-label` cuando solo tienen icono, diálogos con `role="dialog"`/`alertdialog` y mensajes de estado visibles (carga, error, vacío).
 - **Cada cambio con su prueba.** Un comportamiento nuevo lleva prueba en la suite que corresponda (sección 8). Prioriza los casos límite sobre las pruebas redundantes.
 
@@ -50,12 +50,12 @@ React + JavaScript (Vite) · Node.js + Express · PostgreSQL · Python para el s
 
 | Quiero… | Dónde |
 |---|---|
-| Un endpoint nuevo | `routes/<recurso>.js` (URL, verbo y middlewares) → `controllers/<recurso>Controller.js` (HTTP ↔ servicio) → método en un servicio existente o uno nuevo registrado en `container.js` → montarlo en `app.js` |
+| Un endpoint nuevo | `routes/<recurso>.ts` (URL, verbo y middlewares) → `controllers/<recurso>Controller.ts` (HTTP ↔ servicio) → método en un servicio existente o uno nuevo registrado en `container.ts` → montarlo en `app.ts` |
 | Una regla de negocio o validación | En el servicio del caso de uso (`services/`) |
-| Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.js`, `productClassifier.js`, `catalogBuilder.js`, `productEquivalence.js` |
-| Un filtro de búsqueda | `domain/productFilters.js` (servidor) y `frontend/src/utils/filterProducts.js` (cliente). Mantén ambos coherentes. |
-| Guardar algo nuevo en la base | `data/schema.sql` (con `IF NOT EXISTS`), un método en `data/PostgresPersistence.js` y su equivalente vacío en `data/persistence.js` (`NoopPersistence`); el repositorio llama a la persistencia |
-| Una llamada nueva desde el frontend | `frontend/src/api/<recurso>Api.js` → hook en `hooks/` → componente |
+| Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.ts`, `productClassifier.ts`, `catalogBuilder.ts`, `productEquivalence.ts` |
+| Un filtro de búsqueda | `domain/productFilters.ts` (servidor) y `frontend/src/utils/filterProducts.ts` (cliente). Mantén ambos coherentes. |
+| Guardar algo nuevo en la base | `data/schema.sql` (con `IF NOT EXISTS`), el contrato en `data/persistence.ts`, un método en `data/PostgresPersistence.ts` y su equivalente en `NoopPersistence`; el repositorio llama a la persistencia |
+| Una llamada nueva desde el frontend | `frontend/src/api/<recurso>Api.ts` → hook en `hooks/` → componente |
 | Un componente visual | `frontend/src/components/<área>/`; los estilos compartidos están en `index.css` (clases `nav-btn`, `modal-content`, `product-card`, …) |
 | Una tienda o fuente nueva del scraper | `scraper/config.py` + `scraper/sources/` (VTEX en `vtex.py`); debe producir el mismo DTO (sección 4.4) |
 
@@ -70,9 +70,9 @@ Cada uno corrige un defecto real que ya ocurrió (ver la sección 8.4).
 - **Categorías:** solo las cuatro del alcance: *Granos y básicos, Lácteos, Aseo del hogar, Otros*. **Tiendas:** solo D1 y Olímpica (Popayán).
 - **Comparación:** dos ofertas son «el mismo producto» solo si coinciden en contenido neto y tienen nombre similar. Nunca compares 500 g contra 5 kg como si fueran iguales; para presentaciones distintas usa el **precio por kg/L**.
 - **El catálogo público** solo lista productos comparables (sección 4.3).
-- **Los ids de los productos son estables.** La actualización del scraper es incremental (`domain/catalogRefresh.js`): reseñas y favoritos nunca se pierden por actualizar precios.
+- **Los ids de los productos son estables.** La actualización del scraper es incremental (`domain/catalogRefresh.ts`): reseñas y favoritos nunca se pierden por actualizar precios.
 - **Si una tienda trae menos del 50 % de los productos que tenía** (`MIN_STORE_RATIO`), se conservan sus precios anteriores. Si el scraper no obtiene casi nada, no sobrescribe el JSON.
-- **Enlaces «Ver en la tienda»:** siempre `https://<tienda>/<slug>/p` (`domain/productUrl.js`). Sin el `/p`, VTEX muestra un 404 o una búsqueda vacía.
+- **Enlaces «Ver en la tienda»:** siempre `https://<tienda>/<slug>/p` (`domain/productUrl.ts`). Sin el `/p`, VTEX muestra un 404 o una búsqueda vacía.
 - **Un JSON mal formado** en la petición responde 400, nunca 500.
 - **Secretos** fuera del repositorio: `backend/.env` y `scraper/cookies/` están en `.gitignore`.
 
@@ -80,6 +80,8 @@ Cada uno corrige un defecto real que ya ocurrió (ver la sección 8.4).
 
 ```bash
 npm test                                       # backend + frontend
+npm --prefix backend run typecheck             # verificación de tipos del backend
+npm --prefix frontend run typecheck            # verificación de tipos del frontend
 npm run lint && npm run build                  # frontend
 cd scraper && python -m unittest discover -s tests   # si tocaste el scraper
 ```
@@ -100,8 +102,8 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | React 19 + JavaScript (Vite), `lucide-react` para los iconos |
-| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg` |
+| Frontend | React 19 + Vite con el código de aplicación en TypeScript estricto y módulos ESM. Los iconos usan `lucide-react`. |
+| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Todo el código de aplicación en `backend/src/` usa TypeScript estricto y se compila a CommonJS. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
 
@@ -115,9 +117,15 @@ npm run db:setup                        # crea la base "smartfoodpop" y escribe 
 npm run db:check                        # ✔ Conectado a la base "smartfoodpop"
 npm run dev                             # backend :5000 + frontend (Vite) + scraper en segundo plano
 npm run dev -- --no-scrape              # igual, sin actualizar precios (rápido, sin internet)
+npm --prefix backend run build         # compila src/ a dist/ y copia el esquema SQL
+npm --prefix backend start             # ejecuta el backend compilado
 ```
 
+En desarrollo, el backend compila y vigila `src/`, y Node reinicia el servidor cuando cambia el código compilado. `dist/` conserva la estructura de `src/` y lleva `data/schema.sql`. El backend compilado busca `.env` en `backend/` y sigue leyendo el JSON del scraper desde su ubicación original o desde `SCRAPED_PRODUCTS_PATH`. Si se modifica el SQL durante el desarrollo, reinicia el comando de desarrollo para volver a copiarlo.
+
 El scraper necesita `python -m pip install -r scraper/requirements.txt`.
+
+En un clon limpio, `npm --prefix backend ci` y `npm --prefix frontend ci` instalan desde los dos lockfiles versionados. Para usar el catálogo incluido y arrancar en memoria sin configurar PostgreSQL, omite `db:setup` y usa `npm run dev -- --no-scrape` sin variables de conexión. En Windows, `start.bat --no-scrape` omite el scraper y todavía intenta configurar PostgreSQL si falta `backend/.env`.
 
 ### 3.0 En un equipo nuevo (Windows): `git clone` + `start.bat`
 
@@ -132,7 +140,7 @@ start.bat
 `start.bat` (también con doble clic) prepara todo y arranca:
 
 1. Comprueba Node.js y su versión.
-2. Instala las dependencias de `backend` y `frontend` si falta `node_modules`.
+2. Instala las dependencias del backend si falta el compilador TypeScript o los tipos de sus bibliotecas, y las del frontend si falta su carpeta `node_modules`.
 3. Si hay Python, instala `scraper/requirements.txt` cuando falte `requests`. Sin Python, la app usa los precios guardados.
 4. Si no existe `backend/.env`, configura PostgreSQL **automáticamente** (`npm run db:setup`): busca el servidor en los puertos 5432–5434 y pide **una sola vez** la contraseña del usuario `postgres`, la que se eligió al instalar PostgreSQL. Esa clave no se puede automatizar porque solo la conoce quien lo instaló. Admite 3 intentos; luego crea la base `smartfoodpop` y escribe `backend/.env`, que no se sube a git. Las tablas y el catálogo los crea el backend al arrancar. Si PostgreSQL no está instalado o está apagado (detecta el servicio de Windows y explica cómo iniciarlo), la app arranca **en memoria** y en el siguiente arranque lo vuelve a intentar.
 5. Ejecuta `node run-dev.js`, que levanta el backend en `:5000`, el frontend en la URL «Local» que muestra Vite (normalmente `:5173`) y el scraper en segundo plano. Acepta los mismos argumentos (`start.bat --no-scrape`).
@@ -186,20 +194,21 @@ flowchart LR
 | Capa | Carpeta | Contenido |
 |---|---|---|
 | Rutas | `routes/` | `auth`, `products`, `reviews`, `favorites`, `admin`. Cada una recibe su controlador y el middleware. |
-| Middleware | `middleware/authMiddleware.js` | `authenticateToken` y `requireAdmin`; recibe `TokenService` por inyección. |
+| Middleware | `middleware/authMiddleware.ts`, `errorMiddleware.ts` | Verificación JWT, autorización por rol y respuesta central de errores. La solicitud lleva un usuario opcional. |
 | Controladores | `controllers/` | Traducen HTTP ↔ servicio y serializan errores. |
-| Servicios | `services/` | `AuthService` (+ `PasswordHasher`, `TokenService`, `AuthError`), `ProductService` (listado y ofertas), `ProductDetailService`, `ProductComparisonService`, `ProductAdminService`, `ReviewService`, `FavoriteService`, `CatalogRefreshService`. |
-| Dominio | `domain/` | `productNormalizer`, `productClassifier`, `catalogBuilder`, `productEquivalence`, `catalogRefresh`, `productFilters`, `queryHelpers`, `productUrl`, `imageResolver`, `httpError`. |
-| Repositorios | `repositories/` | `Product`, `Catalog` (tiendas y categorías), `User`, `Review`, `Favorite`. Leen de memoria y delegan la escritura a la persistencia. |
-| Datos | `data/` | `schema.sql`, `PostgresPersistence.js`, `persistence.js` (`NoopPersistence`), `inMemoryStore.js`, `initialData.js` (tiendas, categorías y cuentas demo), `scrapedProductsLoader.js`. |
-| Composición | `container.js` | `buildContainer` (también lo usan las pruebas) y `bootstrapContainer` (arranque con PostgreSQL). |
-| Scripts | `backend/scripts/` | `setup-db.js` y `check-db.js`. |
+| Servicios | `services/` | Módulos TypeScript `AuthService` (+ `PasswordHasher`, `TokenService`, `AuthError`), `ProductService` (listado y ofertas), `ProductDetailService`, `ProductComparisonService`, `ProductAdminService`, `ReviewService`, `FavoriteService`, `CatalogRefreshService`. |
+| Dominio | `domain/` | `entities.ts` define entidades, presentaciones, equivalencias y el resultado de actualización. Los módulos TypeScript `productNormalizer`, `productClassifier`, `catalogBuilder`, `productEquivalence`, `catalogRefresh`, `productFilters`, `queryHelpers`, `productUrl`, `imageResolver` y `httpError` contienen la lógica pura. |
+| Contratos | `contracts/` y `data/postgresRows.ts` | `scraper.ts` comprueba registros del JSON, `api.ts` describe entradas y respuestas HTTP, y `postgresRows.ts` describe las proyecciones SQL antes de convertir decimales y fechas. |
+| Repositorios | `repositories/` | Clases TypeScript `ProductRepository`, `CatalogRepository` (tiendas y categorías), `UserRepository`, `ReviewRepository` y `FavoriteRepository`. Leen de memoria y delegan la escritura al contrato `Persistence`. |
+| Datos | `data/` | `schema.sql`, `PostgresPersistence.ts`, `persistence.ts` (`Persistence`, `CatalogPersistence` y `NoopPersistence`), `inMemoryStore.ts`, `initialData.ts` (tiendas, categorías y cuentas demo), `scrapedProductsLoader.ts`. |
+| Composición | `container.ts`, `app.ts`, `config/env.ts` | `buildContainer`, `bootstrapContainer`, configuración del entorno y montaje de Express. |
+| Scripts | `backend/scripts/` | `setup-db.js` y `check-db.js`. Sus comandos npm compilan el backend y cargan la persistencia desde `dist/`. |
 
 ### 4.2 Persistencia y arranque
 
 1. `bootstrapContainer` crea el esquema si no existe. Si la base ya tiene catálogo, lo carga en memoria y aplica el JSON más reciente del scraper (actualización incremental). Si es el primer arranque, construye el catálogo desde el JSON y lo guarda.
 2. **Las lecturas** se sirven desde memoria. **Las escrituras** (usuarios, reseñas, favoritos, productos) se encolan en orden hacia PostgreSQL. Por eso hay una sola instancia del backend (sección 10).
-3. `server.js` vigila el JSON del scraper (`CatalogRefreshService.watch`) y lo aplica cuando cambia.
+3. `server.ts` carga `backend/.env` antes de evaluar la configuración, vigila el JSON del scraper (`CatalogRefreshService.watch`) y aplica los cambios.
 
 ### 4.3 Construcción del catálogo (RF03, RF07, RF08)
 
@@ -220,21 +229,30 @@ flowchart LR
 | `query_builder.py` | Deriva unas 400 búsquedas para Olímpica a partir de los productos de D1, para que haya con qué comparar. |
 | `writer.py` | Escritura atómica (`.tmp` → JSON) con respaldo `.bak`. |
 
-D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímpica solo se conserva la sección *Supermercado*. Cada producto se exporta así: `{ name, price, previous_price?, unit, store: "d1"|"olimpica", is_offer, offer_desc, image_url, source_url (…/p), scraped_at }`.
+D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímpica solo se conserva la sección *Supermercado*. El JSON exporta `name`, `price`, `original_price`, `store` (`d1` u `olimpica`), `is_offer`, `offer_desc`, `image_url`, `source_url`, `scraped_at` y `sku_id`. El lector acepta campos opcionales ausentes o nulos en archivos anteriores. El backend deduce la presentación del nombre, normaliza el enlace a `/p` y obtiene `previous_price` a partir de `original_price` y del precio vigente.
 
 ### 4.5 Frontend (`frontend/src`)
 
 | Elemento | Archivos |
 |---|---|
-| Composición | `App.jsx`: pestañas (catálogo, ofertas, guardados), filtros, paginación de 24 en 24, modales y avisos. |
-| Componentes | `layout/Header.jsx` (buscador, pestañas, menú de perfil con «Mis productos guardados»), `layout/HeroBanner.jsx`, `products/ProductCard.jsx`, `products/ProductDetailModal.jsx` (detalle, comparativa, guardar, reseñas), `auth/AuthModal.jsx`, `admin/AdminPanel.jsx`, `common/Toast.jsx` |
-| Estado | `context/AuthContext.jsx` y `authContext.js`; hooks `useAuth`, `useProducts` (catálogo y acciones del administrador), `useProductDetail`, `useFavorites` |
-| API | `api/httpClient.js` (añade el token, normaliza los errores y cierra la sesión si el token caduca) y `authApi`, `productApi`, `reviewApi`, `favoriteApi`, `adminApi`, `healthApi` |
-| Utilidades | `utils/filterProducts.js` (búsqueda sin tildes, filtros, orden de ofertas), `comparison.js` (comparativa por tarjeta), `format.js` (pesos colombianos y descuentos), `productPayload.js` (validación del formulario del administrador) |
+| Arranque y composición | `main.tsx` monta `App.tsx` dentro de `StrictMode` y `AuthProvider`. `App.tsx` coordina las pestañas de catálogo, ofertas y guardados, los filtros, la paginación de 24 en 24, los modales y los avisos. |
+| Componentes | `layout/Header.tsx` (buscador, pestañas, menú de perfil), `layout/HeroBanner.tsx`, `products/ProductCard.tsx`, `products/ProductDetailModal.tsx` (detalle, comparativa, favoritos y reseñas), `auth/AuthModal.tsx`, `admin/AdminPanel.tsx`, `common/Toast.tsx` |
+| Estado | `context/AuthContext.tsx` proporciona la sesión tipada por `context/authContext.ts`. `hooks/useAuth.ts` consume el contexto. `useProducts.ts` gestiona catálogo y acciones administrativas, `useProductDetail.ts` el producto seleccionado y `useFavorites.ts` los guardados por usuario. |
+| API | `api/httpClient.ts` añade el token, normaliza los errores y cierra la sesión si el token caduca. Los módulos `authApi`, `productApi`, `reviewApi`, `favoriteApi`, `adminApi` y `healthApi` validan las respuestas con `responseGuards.ts`. |
+| Sesión | `storage/sessionStorage.ts` conserva las claves `smartfood_token` y `smartfood_user` en `localStorage`. |
+| Utilidades | `utils/filterProducts.ts` (búsqueda, filtros y orden de ofertas), `comparison.ts` (comparativa por tarjeta), `format.ts` (pesos colombianos y descuentos), `productPayload.ts` (validación del formulario del administrador) |
+
+`types/api.ts` reexporta solo tipos de los contratos HTTP y entidades que usa el backend. `types/presentation.ts` define las formas que necesitan las utilidades y el formulario. Ante un cambio de API, actualiza el contrato en el backend y su validación en `responseGuards.ts`, y comprueba ambos con el cliente y una respuesta real. Las referencias de tipos se eliminan del bundle y el chequeo necesita esos archivos del repositorio.
+
+El proveedor restaura el usuario local y escucha el evento de caducidad emitido por el cliente HTTP. Cada lectura de detalle queda asociada al identificador seleccionado y su efecto descarta respuestas tras un cambio de selección. Los cambios administrativos y de favoritos requieren una respuesta que confirme la operación antes de actualizar el estado.
+
+La sesión en el navegador tiene una revisión que cambia al iniciar o cerrar sesión, incluso al reutilizar el mismo JWT. El hook de favoritos descarta lecturas y escrituras de una revisión anterior. El cliente HTTP solo caduca la sesión que originó la solicitud rechazada.
+
+El build del frontend ejecuta `tsc` antes de Vite. La configuración de aplicación usa `strict`, `noEmit`, `react-jsx`, resolución `bundler` y `allowJs: false`. Las pruebas en JavaScript se ejecutan por separado con `node:test`. El punto de entrada conserva la extensión explícita en el import de `AuthContext.tsx` para distinguirlo de `authContext.ts` en Windows.
 
 ### 4.6 Seguridad
 
-Contraseñas con bcrypt · JWT de 7 días en `Authorization: Bearer` · autorización por rol en `/api/admin/*` · `JWT_SECRET` obligatorio en producción · autenticación propia, sin proveedores externos.
+Contraseñas con bcrypt (coste predeterminado 10) · JWT HS256 de 7 días en `Authorization: Bearer` · autorización por rol en `/api/admin/*` · `JWT_SECRET` obligatorio en producción · autenticación propia, sin proveedores externos.
 
 ---
 
@@ -301,19 +319,24 @@ Reglas: el correo es único; hay un precio por producto y tienda (`UNIQUE (produ
 
 | Método y ruta | Acceso | RF | Respuesta |
 |---|---|---|---|
-| `POST /auth/register` | Público | RF01 | `{name,email,password}` → 201 con token y mensaje · 400 si hay error de validación · 409 si el correo existe |
-| `POST /auth/login` | Público | RF02 | 200 con token · 400 si hay campos vacíos · 401 «Credenciales incorrectas» |
-| `GET /auth/me` | Usuario | RF02 | Datos de la sesión · 401 sin token · 403 con token inválido |
-| `GET /products` | Público | RF03, RF04, RF09 | `{products, stores, categories, total, message?}`. Filtros: `search`, `category`, `store`, `is_offer`. Un filtro inválido da 400. |
-| `GET /products/offers` | Público | RF08 | Productos con oferta |
-| `GET /products/compare` | Público | RF07 | Precio mínimo, máximo y ahorro potencial |
-| `GET /products/:id` | Público | RF05–RF07 | Detalle, precios por tienda, reseñas, `review_summary` y productos similares · 404 si no existe |
-| `GET /reviews/product/:id` | Público | RF06 | Reseñas del producto |
-| `POST /reviews` | Usuario | RF06 | `{product_id, rating 1–5, comment}` → 201 |
-| `GET /favorites` | Usuario | RF10 | Productos guardados del usuario |
-| `POST /favorites/toggle` | Usuario | RF10 | `{product_id}` → `{isFavorite, message}` |
-| `POST /admin/products`, `PUT /admin/products/:id`, `DELETE /admin/products/:id` | Admin | RF11 | Crear, editar o eliminar, con un mensaje de confirmación |
-| `GET /health` | Público | — | `{status, storage: "postgres" \| "memory"}` |
+| `GET /` | Público | — | 200 con `{app, city, version, status, endpoints}` |
+| `POST /auth/register` | Público | RF01 | `{name,email,password}` → 201 con `{user, token, message}` · 400 por validación · 409 si el correo existe |
+| `POST /auth/login` | Público | RF02 | `{email,password}` → 200 con `{user, token, message}` · 400 por campos vacíos · 401 «Credenciales incorrectas» |
+| `GET /auth/me` | Usuario | RF02 | 200 con `{user}` a partir del JWT verificado |
+| `GET /products` | Público | RF03, RF04, RF09 | 200 con `{products, stores, categories, total, message}`. Consultas `search`, `category`, `store`, `is_offer` · 400 por parámetro inválido |
+| `GET /products/offers` | Público | RF08 | 200 con `{total, offers}` |
+| `GET /products/compare` | Público | RF07 | 200 con `{total, products, message}` y precio mínimo, máximo y ahorro potencial por producto. Consultas `search`, `category`, `store` · 400 por parámetro inválido |
+| `GET /products/:id` | Público | RF05–RF07 | 200 con `{product, reviews, review_summary, similar}` · 404 si el ID no corresponde a un producto |
+| `GET /reviews/product/:productId` | Público | RF06 | 200 con `{reviews}`, lista vacía si no hay coincidencia |
+| `POST /reviews` | Usuario | RF06 | `{product_id, rating, comment}` → 201 con `{review, message}` · 400 por validación · 404 si el producto no existe |
+| `GET /favorites` | Usuario | RF10 | 200 con `{favorites}` |
+| `POST /favorites/toggle` | Usuario | RF10 | `{product_id}` → 200 con `{isFavorite, message}` · 400 si falta el ID · 404 si el producto no existe |
+| `POST /admin/products` | Admin | RF11 | `{name, category_id, prices, description?, unit?, image_url?}` → 201 con `{product, message}` · 400 por validación |
+| `PUT /admin/products/:id` | Admin | RF11 | Cuerpo parcial del alta → 200 con `{product, message}` · 400 por validación · 404 si el producto no existe |
+| `DELETE /admin/products/:id` | Admin | RF11 | 200 con `{message}` · 404 si el producto no existe |
+| `GET /health` | Público | — | 200 con `{status, storage: "postgres" \| "memory"}` |
+
+Express aplica CORS y luego el lector JSON. En rutas protegidas, `authenticateToken` devuelve 401 si falta el token y 403 si es inválido o expiró. En rutas de administración, `requireAdmin` se ejecuta después y devuelve 403 si falta el rol `admin`. El preflight de CORS responde 204. Una ruta desconocida bajo `/api` devuelve 404. Los errores JSON llevan `{error}`. El manejador central devuelve 400 para JSON mal formado y 500 para otros errores inesperados, con un mensaje genérico.
 
 ### 6.2 Pantallas
 
@@ -337,11 +360,11 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 |---|---|---|---|
 | RF01 / HU01 Registro | 1 | `AuthModal` → `AuthService.register`: campos obligatorios, correo válido, contraseña de 6 caracteres o más, correo único, bcrypt, mensaje y sesión iniciada | `api.test.js` HU01, `solid.test.js`, `postgres.test.js` |
 | RF02 / HU02 Inicio de sesión | 1 | `AuthService.login` + JWT; la sesión caducada se cierra sola | `api.test.js` HU02 |
-| RF03 / HU03 Catálogo | 1 | Scraper → `scrapedProductsLoader`/`catalogRefresh` → `GET /products` → `App.jsx` | `api.test.js` HU03, `catalog.test.js`, `catalogRefresh.test.js`, `scraper/tests/*` |
-| RF04 / HU04 Búsqueda | 2 | `Header` + `utils/filterProducts.js` (sin recargar, ignora tildes); API `?search=` | `api.test.js`, `utils.test.js` RF04 |
+| RF03 / HU03 Catálogo | 1 | Scraper → `scrapedProductsLoader`/`catalogRefresh` → `GET /products` → `App.tsx` | `api.test.js` HU03, `catalog.test.js`, `catalogRefresh.test.js`, `scraper/tests/*` |
+| RF04 / HU04 Búsqueda | 2 | `Header` + `utils/filterProducts.ts` (sin recargar, ignora tildes); API `?search=` | `api.test.js`, `utils.test.js` RF04 |
 | RF05 / HU05 Detalle | 2 | `ProductDetailModal` / `ProductDetailService` | `api.test.js` HU05, `solid.test.js` RF05 |
 | RF06 / HU06 Reseñas | 2–3 | `ReviewService`: lectura pública y publicación solo con sesión | `api.test.js` HU06, `postgres.test.js` |
-| RF07 / HU07 Comparación | 1 (matriz) | `catalogBuilder`, `productEquivalence`, `utils/comparison.js` | `catalog.test.js` HU07, `equivalence*.test.js`, `comparison.test.js` |
+| RF07 / HU07 Comparación | 1 (matriz) | `catalogBuilder`, `productEquivalence`, `utils/comparison.ts` | `catalog.test.js` HU07, `equivalence*.test.js`, `comparison.test.js` |
 | RF08 / HU08 Ofertas | 3 | Pestaña Ofertas y `GET /products/offers` | `api.test.js`, `catalog.test.js` HU08, `utils.test.js` RF08 |
 | RF09 / HU09 Filtros | 2–3 | Categoría y tienda, combinables; mensaje si no hay coincidencias | `api.test.js`, `solid.test.js` RF09, `utils.test.js` RF09 |
 | RF10 / HU10 Guardados | 3 | Corazón en la tarjeta y botón en el detalle; lista desde la pestaña y el menú de perfil | `api.test.js` HU10, `utils.test.js` RF10, `postgres.test.js` |
@@ -355,16 +378,47 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 
 | Nivel | Herramienta | Dónde |
 |---|---|---|
-| Unitarias (servicios, dominio, sustitución de dependencias) | `node:test` | `backend/tests/solid.test.js`, `catalog.test.js`, `catalogRefresh.test.js`, `equivalence.test.js`, `equivalence-quality.test.js` |
-| Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` (datos de `tests/fixtures/scraped_sample.json`) |
-| Persistencia | `node:test` + `pg-mem` (verificado también contra PostgreSQL 16 y 18 reales) | `backend/tests/postgres.test.js` |
-| Frontend (filtros, comparación, formato, validación del administrador) | `node:test` | `frontend/src/utils/*.test.js` |
+| Unitarias (servicios, dominio, sustitución de dependencias) | `node:test` | `backend/tests/solid.test.js`, `catalog.test.js`, `catalogRefresh.test.js`, `equivalence.test.js`, `equivalence-quality.test.js`, `domainContracts.test.js` |
+| Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` y `backend/tests/httpBoundary.test.js` |
+| Persistencia | `node:test` + `pg-mem` y pool simulado. Persistencia compilada verificada también en PostgreSQL 18.6 aislado. | `backend/tests/postgres.test.js`, `backend/tests/persistenceContracts.test.js` |
+| Autenticación | `node:test` con bcrypt y JWT | `backend/tests/authContracts.test.js` y los casos de autenticación de `api.test.js` |
+| Frontend (filtros, comparación, formato, formulario, HTTP, sesión y hooks) | `node:test` con el cargador de Vite y ReactDOM Server para el estado inicial y las acciones de los hooks | `frontend/src/utils/*.test.js`, `frontend/src/api/httpClient.test.js`, `frontend/src/context/authContext.test.js` y `frontend/src/hooks/*.test.js` |
 | Scraper (contrato, paginación, reintentos, categorías, búsquedas, URL) | `unittest` | `scraper/tests/` |
-| Estáticas | `oxlint`, `vite build` | `npm run lint`, `npm run build` |
+| Estáticas | `tsc`, `oxlint`, `vite build` | `npm --prefix backend run typecheck`, `npm --prefix frontend run typecheck`, `npm run lint`, `npm run build` |
+
+Las pruebas del backend ejecutan el código compilado en `dist/`. Las de persistencia usan `pg-mem`.
 
 ### 8.2 Última ejecución (25-nov-2026)
 
 Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build correcto.
+
+Migración del dominio (26-nov-2026) · Backend 58/58 · chequeo de tipos y build correctos. La comparación antes y después con una copia fija del JSON incluyó productos, precios, ofertas, categorías, equivalencias y actualización con cobertura parcial.
+
+Migración de persistencia y repositorios (26-nov-2026) · Backend 60/60 · chequeo de tipos y build correctos. Las dos pruebas nuevas cubren el mapeo de filas y el orden de la cola tras un rollback.
+
+Migración de servicios (26-nov-2026) · Backend 62/62 · chequeo de tipos y build correctos. Antes de migrar se verificaron el esquema, las conversiones, el orden de escritura, el rollback, el cierre, el reinicio y la fusión de productos en un clúster PostgreSQL 18.6 temporal.
+
+Migración HTTP (26-nov-2026) · Backend 64/64 · chequeo de tipos y build correctos. La comparación antes y después con una muestra fija cubrió los 16 endpoints explícitos y 54 casos HTTP con la misma huella de respuestas.
+
+Con Node.js 20.19.0 en Windows se verificaron el build desde `dist/` vacío, `start.bat --no-scrape`, `npm start`, el cliente HTTP del frontend y la recarga del catálogo desde una copia de prueba.
+
+Migración de API, sesión y utilidades del frontend (26-nov-2026) · Frontend 15/15 · backend 64/64 · chequeo de tipos, lint y build correctos. La integración usó Express compilado en memoria y una muestra fija. Se verificaron catálogo, filtros, detalle, comparación, ofertas, sesión, reseñas, favoritos y administración.
+
+Migración de hooks y contexto (26-nov-2026) · Frontend 23/23, con chequeo de tipos, lint y build correctos · backend 64/64 con chequeo de tipos correcto. La integración combinó HTTP contra Express en memoria con una muestra fija y renderizado de `App.jsx` y `ProductCard.jsx` mediante ReactDOM Server. La comprobación visual y de efectos en navegador quedó pendiente por un fallo de acceso a Chrome.
+
+Migración de componentes (26-nov-2026) · Frontend 23/23 y backend 64/64 en Windows con Node.js 20.19.0 y 24.14.0. Pasaron el chequeo de tipos y la compilación de ambos, además del lint del frontend. Nueve escenarios produjeron HTML idéntico antes y después con ReactDOM Server y una muestra fija servida por Express en memoria. El build limpio no contiene módulos del backend ni credenciales de demostración.
+
+Chrome con un perfil temporal verificó el catálogo, los filtros, las ofertas, el detalle comparativo, el registro, el inicio y el cierre de sesión, la caducidad del token, las reseñas, los favoritos y las operaciones administrativas. No registró errores de JavaScript. Las capturas de escritorio coincidieron y el tamaño del contenido móvil fue el mismo antes y después.
+
+Estabilización (26-nov-2026) · Desde un clon limpio se instalaron ambos proyectos con `npm ci` y pasaron typecheck, build, Oxlint y las suites de backend y frontend con Node.js 20.19.0 y 24.14.0. Backend 64/64 · frontend 28/28 · scraper 19/19 con Python 3.12.12 y 3.13.15, usando respuestas simuladas. El JSON versionado pasó la comprobación de `price`, `original_price`, `sku_id` y las dos tiendas. El bundle de producción se comprobó sin dependencias del servidor ni credenciales de demostración.
+
+En Windows se comprobó el arranque con `npm --prefix backend start`, `node run-dev.js --no-scrape`, `npm run dev -- --no-scrape`, `npm start -- --no-scrape` y `start.bat --no-scrape`. También se ejecutó `start.bat` con un sustituto local del scraper que reescribió la muestra temporal sin red. `db:setup` y `db:check` apuntaron a PostgreSQL 18.6 temporal en loopback. La salida de los modos con coordinador requirió cerrar procesos hijos al inyectar la señal en el coordinador.
+
+En otro clon vacío, `start.bat --no-scrape` detectó e instaló las dependencias y arrancó la API en memoria y Vite. Su llamada a `npm install` regeneró seis entradas de metadatos de plataforma del lockfile del frontend. `npm ci` conservó los dos lockfiles comprometidos.
+
+La integración de Chrome y PostgreSQL 18.6 verificó las siete tablas, la persistencia del registro, la reseña, los favoritos y la administración, y el rollback al violar una clave foránea. Una actualización del catálogo conservó identificadores y precios de Olímpica cuando faltó esa tienda en la muestra. Tras reiniciar PostgreSQL y Express, Chrome recuperó la sesión y los guardados. Con `StrictMode` activo se verificaron escrituras tardías entre sesiones y al volver a la misma cuenta, el detalle fuera de orden y una respuesta de detalle con formato inesperado.
+
+La auditoría de los dos lockfiles con `npm audit` y la de los requisitos del scraper con `pip-audit` no reportaron avisos en estas ejecuciones.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 
@@ -407,6 +461,7 @@ Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build cor
 
 | Decisión | Motivo | Alcance |
 |---|---|---|
+| 26-nov-2026 · Migrar a TypeScript, primero el backend · Aprobada | Incorporar tipado estricto de forma gradual y mantener CommonJS durante la migración del backend | 7.1 |
 | Catálogo en memoria con escritura diferida a PostgreSQL | Lecturas rápidas y servicios simples; basta con una instancia (proyecto académico) | 7.1 |
 | Emparejar por contenido neto y similitud de nombre; equivalentes por kg/L | Comparar sin mezclar presentaciones distintas | RF07 |
 | El catálogo público solo muestra productos comparables | El propósito es comparar entre tiendas | 2.4, RF07 |
@@ -422,7 +477,11 @@ Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build cor
 - **Cobertura:** de unos 4.100 productos del scraper, cerca de 1.010 son comparables y se muestran; el resto no tiene contraparte en la otra tienda. Un producto que crea el administrador con una sola tienda y sin equivalente no aparece en el catálogo.
 - **Vigencia:** los precios son los del último scraping (campo `scraped_at` del JSON). No se garantiza que estén disponibles en la tienda física (excluido del alcance).
 - **Una sola instancia del backend:** las escrituras se encolan desde la memoria del proceso.
-- **Direcciones de las tiendas** en `data/initialData.js`: son de referencia; verifícalas antes de presentarlas como reales.
+- En la prueba de Chrome con una pantalla móvil de 390 px, el contenido ocupa 398 px tanto en la versión JSX como en la versión TSX.
+- En Windows, al señalar solo el proceso coordinador con `SIGINT`, se observó que el backend seguía respondiendo hasta que el entorno de prueba terminó sus procesos hijos. Queda pendiente comprobar el comportamiento de `Ctrl+C` en una consola interactiva.
+- Antes de publicar, revisa el historial de `scraper/cookies/d1_popayan.json` y `scraper/cookies/olimpica_popayan.json`. Los dos están excluidos del árbol actual y aparecen en commits anteriores. Si alguna sesión sigue vigente, invalídala o renuévala antes de coordinar la retirada del historial.
+- El arranque del backend conserva un secreto JWT de respaldo para desarrollo y las cuentas de demostración usan contraseñas conocidas cuando el entorno no proporciona valores. Antes de exponer una instancia, configura su propio `JWT_SECRET`, sustituye las credenciales de las cuentas demo y verifica las cuentas que ya existan en la base.
+- **Direcciones de las tiendas** en `data/initialData.ts`. Son de referencia y deben verificarse antes de presentarlas como reales.
 - **Comparación por peso frente a unidad:** algunos productos que se venden por peso en una tienda y por unidad en la otra (p. ej. *Aguacate Hass Unidad*) dan diferencias de precio enormes.
 - **Inconsistencias del documento de alcance** (por corregir en el documento, no en el código): las fichas HU tienen vacío «Requerimiento asociado» y sin marcar la prioridad; el título de RF10 está repetido; HU11 falta en la sección 13; la numeración de criterios es irregular en HU01 y HU11; los sprints de HU07, HU09 y HU11 y los puntos de HU11 difieren entre la ficha, la matriz y el backlog; RF04 dice «buscar y filtrar» en la priorización; RF06 dice «aplicación» en lugar de «publicación».
 

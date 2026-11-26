@@ -1,13 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildEquivalenceIndex } = require('../src/domain/productEquivalence');
-const { describeDbError } = require('../src/data/PostgresPersistence');
-const { buildContainer } = require('../src/container');
-const { createApp } = require('../src/app');
-const { createInMemoryStore } = require('../src/data/inMemoryStore');
-const ProductRepository = require('../src/repositories/ProductRepository');
-const CatalogRepository = require('../src/repositories/CatalogRepository');
-const ProductService = require('../src/services/ProductService');
+const { buildEquivalenceIndex } = require('../dist/domain/productEquivalence');
+const { describeDbError } = require('../dist/data/PostgresPersistence');
+const { buildContainer } = require('../dist/container');
+const { createApp } = require('../dist/app');
+const { createInMemoryStore } = require('../dist/data/inMemoryStore');
+const ProductRepository = require('../dist/repositories/ProductRepository');
+const CatalogRepository = require('../dist/repositories/CatalogRepository');
+const ProductService = require('../dist/services/ProductService');
 
 const price = (store_id, value) => ({ store_id, price: value, previous_price: value, is_offer: false });
 const product = (id, name, store_id, value) => ({ id, name, description: '', category_id: 1, unit: '', image_url: '', prices: [price(store_id, value)] });

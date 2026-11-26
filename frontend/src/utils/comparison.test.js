@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildComparison, isComparable } from './comparison.js';
-import { filterProducts } from './filterProducts.js';
+import { createTestModules } from '../../scripts/testModules.js';
+
+const vite = await createTestModules();
+test.after(() => vite.close());
+const { buildComparison, isComparable } = await vite.ssrLoadModule('/src/utils/comparison.ts');
+const { filterProducts } = await vite.ssrLoadModule('/src/utils/filterProducts.ts');
 
 const stores = [{ id: 1, code: 'd1', name: 'Tiendas D1' }, { id: 2, code: 'olimpica', name: 'Olímpica' }];
 const priceRow = (store_id, price, per, value) => ({ store_id, price, previous_price: price, is_offer: false, unit_price: per ? { value, per } : null });
