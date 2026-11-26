@@ -46,16 +46,15 @@ if errorlevel 1 (
   )
 )
 
-rem --- 4. Base de datos PostgreSQL (solo la primera vez) ---
+rem --- 4. Base de datos PostgreSQL (automatico, solo la primera vez) ---
 if not exist "backend\.env" (
   echo.
-  echo No hay base de datos configurada ^(falta backend\.env^).
-  echo Con PostgreSQL instalado y encendido, se crea la base "smartfoodpop" automaticamente.
-  echo Sin PostgreSQL la app funciona igual, pero los usuarios, resenas y guardados se pierden al cerrarla.
-  choice /c SN /m "Configurar PostgreSQL ahora"
-  if not errorlevel 2 (
-    call npm --prefix backend run db:setup
-    if errorlevel 1 echo [AVISO] No se pudo configurar PostgreSQL; se usara el modo en memoria. Puedes repetirlo con: npm run db:setup
+  echo Configurando la base de datos PostgreSQL ^(solo la primera vez^)...
+  call npm --prefix backend run db:setup --silent
+  if errorlevel 1 (
+    echo.
+    echo [AVISO] La app arrancara SIN base de datos: usuarios, resenas y guardados se pierden al cerrarla.
+    echo         Cuando PostgreSQL funcione, vuelve a abrir start.bat y se configurara solo.
   )
 )
 
