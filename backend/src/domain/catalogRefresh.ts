@@ -1,3 +1,4 @@
+import { CATEGORY } from './productClassifier';
 import type { CatalogRefreshResult, Product, ProductPrice } from './entities';
 import { productUrlKey } from './productUrl';
 import { CatalogRefreshResultBuilder } from './CatalogRefreshResultBuilder';
@@ -86,6 +87,9 @@ export function mergeCatalog(
       next = {
         ...current,
         image_url: card.image_url || current.image_url,
+        // «Otros» es la categoría sin clasificar: si el clasificador ahora la conoce, se aplica.
+        // Una categoría distinta (elegida por el administrador o ya clasificada) se respeta.
+        category_id: current.category_id === CATEGORY.OTHERS ? card.category_id : current.category_id,
         // La descripción automática dice en qué tiendas está; la escrita por el administrador se respeta.
         description: !current.description || current.description.startsWith('Presentación:') ? card.description : current.description,
         prices: [...card.prices, ...keptPrices(current, coveredStores)].sort(byStore)

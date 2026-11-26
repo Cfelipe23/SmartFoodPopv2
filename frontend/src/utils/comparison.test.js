@@ -26,6 +26,22 @@ test('RF07: la tarjeta compara el producto con su equivalente de la otra tienda 
   assert.equal(isComparable(product), true);
 });
 
+test('RF07: el papel higiénico se compara por metro y el cliente acepta esa medida', async () => {
+  const product = {
+    id: 1, name: 'Papel Higiénico Rendy 12 Un 33 Mts', unit: '12 x 33 m', description: null, image_url: null, category_id: 3,
+    prices: [{ ...priceRow(1, 14800, 'm', 37), offer_description: '' }],
+    equivalent: { id: 2, name: 'Papel Higiénico Familia Expert 26 Mts X9', unit: '9 x 26 m', image_url: null, score: 0.6, prices: [{ ...priceRow(2, 26050, 'm', 111), offer_description: '' }] }
+  };
+  const comparison = buildComparison(product, stores);
+  assert.equal(comparison.basis, 'unit');
+  assert.equal(comparison.measure, 'm');
+  assert.equal(comparison.best.store_id, 1);
+  const { isCatalog } = await vite.ssrLoadModule('/src/api/responseGuards.ts');
+  const catalog = { total: 1, message: '', products: [product], stores: [], categories: [{ id: 5, name: 'Aseo Personal', slug: 'aseo-personal', icon: '🧴' }] };
+  assert.equal(isCatalog(catalog), true, 'una respuesta con precio por metro es válida');
+  assert.equal(isCatalog({ ...catalog, products: [{ ...product, prices: [{ ...product.prices[0], unit_price: { value: 1, per: 'cm' } }] }] }), false);
+});
+
 test('RF07: un producto idéntico en ambas tiendas se compara por precio', () => {
   const product = { id: 1, name: 'Arroz 500 G', unit: '500 g', prices: [priceRow(1, 2000), priceRow(2, 1900)], equivalent: null };
   const comparison = buildComparison(product, stores);

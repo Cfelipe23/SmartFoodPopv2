@@ -67,7 +67,7 @@ Cada uno corrige un defecto real que ya ocurrió (ver la sección 8.4).
 - **Rutas `/api/admin/*`** exigen el rol `admin`: 401 sin token y 403 con un rol distinto.
 - **Eliminar un producto** borra en cascada sus precios, reseñas y favoritos, y en la interfaz **pide confirmación**.
 - **Editar un producto** en el panel conserva sus ofertas.
-- **Categorías:** solo las cuatro del alcance: *Granos y básicos, Lácteos, Aseo del hogar, Otros*. **Tiendas:** solo D1 y Olímpica (Popayán).
+- **Categorías:** las cuatro del alcance (*Granos y básicos, Lácteos, Aseo del hogar, Otros*) más *Aseo personal*, que el equipo aprobó el 26-nov-2026 (sección 9). No añadas otra sin una decisión registrada. Una categoría nueva necesita su fila en `data/initialData.ts`; `bootstrapContainer` la inserta en bases existentes con `syncCategories`. **Tiendas:** solo D1 y Olímpica (Popayán).
 - **Comparación:** dos ofertas son «el mismo producto» solo si coinciden en contenido neto y tienen nombre similar. Nunca compares 500 g contra 5 kg como si fueran iguales; para presentaciones distintas usa el **precio por kg/L**.
 - **El catálogo público** solo lista productos comparables (sección 4.3).
 - **Los ids de los productos son estables.** La actualización del scraper es incremental (`domain/catalogRefresh.ts`): reseñas y favoritos nunca se pierden por actualizar precios.
@@ -221,12 +221,12 @@ Al arrancar, `bootstrapContainer` obtiene la persistencia directamente con `Post
 
 ### 4.3 Construcción del catálogo (RF03, RF07, RF08)
 
-1. `productNormalizer`: normaliza el nombre (tildes, mayúsculas), extrae el contenido neto (`2.500 G`, `1,1 Lt X6`) en g o ml × unidades y separa las palabras significativas.
-2. `productClassifier`: asigna una de las cuatro categorías del alcance.
+1. `productNormalizer`: normaliza el nombre (tildes, mayúsculas), extrae el contenido neto (`2.500 G`, `1,1 Lt X6`) en g, ml o metros × unidades y separa las palabras significativas. Los metros sirven para el papel higiénico y la seda dental (`33 Mts X12`, `20M X15R`). Un `m` suelto con menos de 10 se ignora, para no leer la marca 3M como medida. La cantidad reconoce también `12 Un`, `12 U` y `X16 Rollos`.
+2. `productClassifier`: asigna una de las cinco categorías. Un jabón va a *Aseo personal* solo con una señal de tocador (marca como Protex, Dove o Palmolive, o palabras como antibacterial, facial o manos); sin ella es de lavar y va a *Aseo del hogar*. El papel higiénico se queda en *Aseo del hogar*.
 3. `catalogBuilder`: une en una tarjeta el **mismo producto** de D1 y Olímpica (mismo contenido neto y similitud de nombre ≥ 0,6) y genera el detalle de la oferta («Antes $X · ahorras N %»).
-4. `productEquivalence`: para los productos que solo están en una tienda busca el **equivalente** más parecido en la otra (misma unidad de medida, similitud ≥ 0,5) y calcula el precio por kg/L.
+4. `productEquivalence`: para los productos que solo están en una tienda busca el **equivalente** más parecido en la otra (misma unidad de medida, similitud ≥ 0,5) y calcula el precio por kg, por litro o por metro (`computeUnitPrice`; el frontend acepta `per: 'kg' | 'L' | 'm'` en `responseGuards.ts`).
 5. `ProductService.list` expone **solo los productos comparables**: primero los idénticos, luego los que tienen equivalente.
-6. `catalogRefresh.mergeCatalog`: reconoce cada producto por la URL de su página en cada tienda; actualiza precios, añade los nuevos y retira los que ya no se publican. No toca los productos creados por el administrador.
+6. `catalogRefresh.mergeCatalog`: reconoce cada producto por la URL de su página en cada tienda; actualiza precios, añade los nuevos y retira los que ya no se publican. No toca los productos creados por el administrador. Un producto que sigue en *Otros* toma la categoría que asigna ahora el clasificador; cualquier otra categoría se respeta.
    `CatalogRefreshResultBuilder` reúne los productos conservados, actualizados, creados y retirados. Mantiene el orden de las fichas existentes y añade las nuevas al final. Al retirar una ficha fusionada registra también su identificador de destino para reasignar reseñas y favoritos. Del mismo conjunto de operaciones obtiene los cambios para PostgreSQL y las estadísticas de la actualización.
 
 ### 4.4 Scraper (`scraper/`)
@@ -239,7 +239,7 @@ Al arrancar, `bootstrapContainer` obtiene la persistencia directamente con `Post
 | `query_builder.py` | Deriva unas 400 búsquedas para Olímpica a partir de los productos de D1, para que haya con qué comparar. |
 | `writer.py` | Escritura atómica (`.tmp` → JSON) con respaldo `.bak`. |
 
-D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímpica solo se conserva la sección *Supermercado*. El JSON exporta `name`, `price`, `original_price`, `store` (`d1` u `olimpica`), `is_offer`, `offer_desc`, `image_url`, `source_url`, `scraped_at` y `sku_id`. El lector acepta campos opcionales ausentes o nulos en archivos anteriores. El backend deduce la presentación del nombre, normaliza el enlace a `/p` y obtiene `previous_price` a partir de `original_price` y del precio vigente.
+D1 se consulta con su catálogo completo: alimentos, aseo del hogar e higiene personal básica (`D1_TARGET_CATEGORIES` en `config.py`: papel higiénico y pañuelos, cuidado oral, jabonería, desodorantes, cuidado capilar, protección femenina y afeitado; sin maquillaje, cuidado facial, fragancias ni botiquín). De Olímpica solo se conserva la sección *Supermercado*. Además de las búsquedas derivadas de D1, que tienen un tope de 400, Olímpica se consulta siempre con búsquedas fijas de canasta básica y de higiene personal (`_DEFAULT_QUERIES` y `_PERSONAL_CARE_QUERIES`). El JSON exporta `name`, `price`, `original_price`, `store` (`d1` u `olimpica`), `is_offer`, `offer_desc`, `image_url`, `source_url`, `scraped_at` y `sku_id`. El lector acepta campos opcionales ausentes o nulos en archivos anteriores. El backend deduce la presentación del nombre, normaliza el enlace a `/p` y obtiene `previous_price` a partir de `original_price` y del precio vigente.
 
 ### 4.5 Frontend (`frontend/src`)
 
@@ -473,6 +473,7 @@ La auditoría de los dos lockfiles con `npm audit` y la de los requisitos del sc
 
 | Decisión | Motivo | Alcance |
 |---|---|---|
+| 26-nov-2026 · Añadir la categoría *Aseo personal* (crema dental, cepillos, jabón de tocador, shampoo, desodorante, protección femenina, afeitado, pañuelos) y traer esos productos de D1 y Olímpica · Aprobada por el usuario | El catálogo no tenía productos esenciales de higiene: D1 los publica en *Cuidado personal y belleza*, que el scraper descartaba. Solo se incluyen las subcategorías esenciales. | 6.1 ítem 8 (amplía las cuatro categorías) |
 | 26-nov-2026 · Migrar a TypeScript, primero el backend · Aprobada | Incorporar tipado estricto de forma gradual y mantener CommonJS durante la migración del backend | 7.1 |
 | Catálogo en memoria con escritura diferida a PostgreSQL | Lecturas rápidas y servicios simples; basta con una instancia (proyecto académico) | 7.1 |
 | Emparejar por contenido neto y similitud de nombre; equivalentes por kg/L | Comparar sin mezclar presentaciones distintas | RF07 |
@@ -480,7 +481,7 @@ La auditoría de los dos lockfiles con `npm audit` y la de los requisitos del sc
 | Búsqueda y filtros en el cliente, con los mismos filtros en la API | Nueva búsqueda sin recargar (criterio 5 de HU04) | RF04, RF09 |
 | Sin recuperación de contraseña | No está en el alcance y la versión anterior era insegura | 7.1 |
 | Scraper en cada `npm run dev` con actualización incremental | Precios al día sin perder reseñas ni favoritos | RF03 |
-| Solo D1 y Olímpica; cuatro categorías | Definido en el alcance (2.4 y 8) | 2.4, 8 |
+| Solo D1 y Olímpica; cuatro categorías (más *Aseo personal* desde el 26-nov-2026) | Definido en el alcance (2.4 y 8) | 2.4, 8 |
 
 ---
 

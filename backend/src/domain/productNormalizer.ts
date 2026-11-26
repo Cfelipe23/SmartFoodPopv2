@@ -7,14 +7,16 @@ const STOPWORDS = new Set([
   'x', 'un', 'una', 'und', 'unds', 'unid', 'unidad', 'unidades', 'ud', 'uds', 'neto', 'pet',
   'pack', 'paca', 'bolsa', 'caja', 'botella', 'tarro', 'doypack', 'frasco', 'sobre', 'lata',
   'tetrapak', 'uht', 'g', 'gr', 'grs', 'gramo', 'gramos', 'kg', 'kgs', 'kilo', 'kilos',
-  'ml', 'cc', 'l', 'lt', 'lts', 'litro', 'litros'
+  'ml', 'cc', 'l', 'lt', 'lts', 'litro', 'litros', 'm', 'mt', 'mts', 'metro', 'metros'
 ]);
 
-const SIZE_PATTERN = /(\d+(?:[.,]\d+)*)\s*(kgs?|kilos?|gramos?|grs?|g|ml|cc|lts?|litros?|l)\b/;
+// Metros: papel higiénico y seda dental ("33 Mts X12 Unds"). Un "m" suelto con menos de 10 se ignora (marca 3M).
+const SIZE_PATTERN = /(\d+(?:[.,]\d+)*)\s*(kgs?|kilos?|gramos?|grs?|g|ml|cc|lts?|litros?|l|mts?|metros?|m)\b/;
 const COUNT_PATTERNS = [
+  /\bx\s*(\d+)\s*(?:r|rollos?|roll)\b/,
   /\bx\s*(\d+)\b(?!\s*(?:kgs?|kilos?|gramos?|grs?|g|ml|cc|lts?|litros?|l)\b)/,
   /\b(\d+)\s*x\b/,
-  /\b(\d+)\s*(?:unds?|unid|unidades|uds?)\b/
+  /\b(\d+)\s*(?:unds?|un|u|unid|unidades|uds?|rollos?|roll)\b/
 ];
 
 export function stripAccents(text: unknown): string {
@@ -35,6 +37,7 @@ function toBaseUnit(amount: number, unit: string): { amount: number; unit: BaseU
   if (/^(kgs?|kilos?)$/.test(unit)) return { amount: amount * 1000, unit: 'g' };
   if (/^(lts?|litros?|l)$/.test(unit)) return { amount: amount * 1000, unit: 'ml' };
   if (/^(ml|cc)$/.test(unit)) return { amount, unit: 'ml' };
+  if (/^(mts?|metros?|m)$/.test(unit)) return { amount, unit: 'm' };
   return { amount, unit: 'g' };
 }
 
@@ -46,7 +49,8 @@ export function extractSize(normalized: string): ProductSize {
   const sizeMatch = normalized.match(SIZE_PATTERN);
   if (sizeMatch) {
     const quantity = parseQuantity(sizeMatch[1]);
-    if (Number.isFinite(quantity) && quantity > 0) {
+    const isBrand3M = sizeMatch[2] === 'm' && quantity < 10;
+    if (Number.isFinite(quantity) && quantity > 0 && !isBrand3M) {
       ({ amount, unit } = toBaseUnit(quantity, sizeMatch[2]));
       amount = Math.round(amount * 100) / 100;
       sizeText = sizeMatch[0];
@@ -84,11 +88,12 @@ export function formatSizeLabel(size: ProductSize): string {
   let base = '';
   if (size.amount !== null) {
     if (size.unit === 'g') base = size.amount >= 1000 ? `${size.amount / 1000} kg` : `${size.amount} g`;
+    else if (size.unit === 'm') base = `${size.amount} m`;
     else base = size.amount >= 1000 ? `${size.amount / 1000} L` : `${size.amount} ml`;
   }
   if (size.count > 1 && !base) return `${size.count} unidades`;
-  // Líquidos: 6 envases de 200 ml. Sólidos: el peso es el total del empaque.
-  if (size.count > 1) return size.unit === 'ml' ? `${size.count} x ${base}` : `${base} (${size.count} unidades)`;
+  // Líquidos: 6 envases de 200 ml; papel: 12 rollos de 33 m. Sólidos: el peso es el total del empaque.
+  if (size.count > 1) return size.unit === 'g' ? `${base} (${size.count} unidades)` : `${size.count} x ${base}`;
   return base || 'Unidad';
 }
 

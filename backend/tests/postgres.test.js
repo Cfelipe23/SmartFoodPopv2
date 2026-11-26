@@ -57,12 +57,27 @@ test('PostgreSQL: el esquema se crea y el catálogo inicial se guarda y se vuelv
   await persistence.load(reloaded);
   assert.equal(reloaded.products.length, container.store.products.length);
   assert.equal(reloaded.users.length, 2);
-  assert.deepEqual(reloaded.categories.map(category => category.slug), ['granos-y-basicos', 'lacteos', 'aseo-del-hogar', 'otros']);
+  assert.deepEqual(reloaded.categories.map(category => category.slug), ['granos-y-basicos', 'lacteos', 'aseo-del-hogar', 'otros', 'aseo-personal']);
   const original = container.store.products[0];
   const stored = reloaded.products.find(product => product.id === original.id);
   assert.equal(stored.name, original.name);
   assert.deepEqual(stored.prices.map(price => price.price).sort(), original.prices.map(price => price.price).sort());
   assert.equal(typeof stored.prices[0].price, 'number', 'los precios DECIMAL vuelven como número');
+});
+
+test('PostgreSQL: una base creada sin «Aseo personal» la recibe al arrancar y acepta productos de esa categoría', async () => {
+  const persistence = createPersistence();
+  await bootstrapContainer({ persistence, logger: quietLogger, scrapedPath, reseedCatalog: false });
+  // Simula una base anterior a la categoría 5.
+  await persistence.pool.query('DELETE FROM products WHERE category_id = 5');
+  await persistence.pool.query('DELETE FROM categories WHERE id = 5');
+
+  const second = await restart(persistence);
+  assert.ok(second.store.categories.some(category => category.slug === 'aseo-personal'));
+  const created = second.productAdminService.create({ name: 'Crema Dental de prueba 100 ml', category_id: 5, prices: [{ store_id: 1, price: 4500 }] });
+  await persistence.flush();
+  const { rows } = await persistence.pool.query('SELECT category_id FROM products WHERE id = $1', [created.id]);
+  assert.equal(rows[0].category_id, 5, 'se guarda sin violar la clave foránea');
 });
 
 test('PostgreSQL: usuarios, reseñas, favoritos y cambios del admin sobreviven a un reinicio', async () => {

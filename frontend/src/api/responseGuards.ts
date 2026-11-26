@@ -44,7 +44,7 @@ export function isCurrentUser(value: unknown): value is CurrentUserResponse {
 }
 
 function isUnitPrice(value: unknown): value is UnitPrice {
-  return isRecord(value) && typeof value.value === 'number' && (value.per === 'kg' || value.per === 'L');
+  return isRecord(value) && typeof value.value === 'number' && (value.per === 'kg' || value.per === 'L' || value.per === 'm');
 }
 
 function isPrice(value: unknown): value is ProductPrice {

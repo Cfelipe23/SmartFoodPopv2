@@ -23,6 +23,8 @@ export interface CatalogPersistence extends Persistence {
   hasCatalog(): Promise<boolean>;
   load(store: InMemoryStore): Promise<void>;
   seedReferenceData(store: ReferenceData): Promise<void>;
+  // Inserta o actualiza las categorías (p. ej. una categoría nueva en una base que ya tiene catálogo).
+  syncCategories(categories: ReferenceData['categories']): Promise<void>;
   replaceCatalog(products: readonly Product[]): Promise<void>;
 }
 

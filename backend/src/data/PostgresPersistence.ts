@@ -119,18 +119,22 @@ export class PostgresPersistence implements CatalogPersistence {
         [s.id, s.name, s.code, s.logo, s.city, s.address]
       );
     }
-    for (const c of store.categories) {
-      await this.pool.query<never, SqlParameters>(
-        `INSERT INTO categories (id, name, slug, icon) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, icon = EXCLUDED.icon`,
-        [c.id, c.name, c.slug, c.icon]
-      );
-    }
+    await this.syncCategories(store.categories);
     for (const user of store.users) {
       await this.pool.query<never, SqlParameters>(
         `INSERT INTO users (id, name, email, password_hash, role) VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (email) DO NOTHING`,
         [user.id, user.name, user.email, user.password_hash, user.role]
+      );
+    }
+  }
+
+  async syncCategories(categories: ReferenceData['categories']): Promise<void> {
+    for (const c of categories) {
+      await this.pool.query<never, SqlParameters>(
+        `INSERT INTO categories (id, name, slug, icon) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, icon = EXCLUDED.icon`,
+        [c.id, c.name, c.slug, c.icon]
       );
     }
   }

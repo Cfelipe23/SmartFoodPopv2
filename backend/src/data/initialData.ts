@@ -10,12 +10,13 @@ export const initialStores: Store[] = [
   { id: 2, name: 'Supermercado Olímpica', code: 'olimpica', logo: '🛒', city: 'Popayán', address: 'Carrera 9 # 18N-12, Catay' }
 ];
 
-// Categorías del alcance (documento, sección 6.1 ítem 8).
+// Categorías del alcance (documento, sección 6.1 ítem 8) más «Aseo Personal», aprobada por el equipo el 26-nov-2026.
 export const initialCategories: Category[] = [
   { id: 1, name: 'Granos y Básicos', slug: 'granos-y-basicos', icon: '🌾' },
   { id: 2, name: 'Lácteos', slug: 'lacteos', icon: '🥛' },
   { id: 3, name: 'Aseo del Hogar', slug: 'aseo-del-hogar', icon: '🧹' },
-  { id: 4, name: 'Otros', slug: 'otros', icon: '🛍️' }
+  { id: 4, name: 'Otros', slug: 'otros', icon: '🛍️' },
+  { id: 5, name: 'Aseo Personal', slug: 'aseo-personal', icon: '🧴' }
 ];
 
 export const initialProducts: Product[] = [

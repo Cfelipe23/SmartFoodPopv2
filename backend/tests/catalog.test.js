@@ -20,7 +20,20 @@ test('RF03: size extraction understands Colombian number formats', () => {
   function pick({ amount, unit, count }) { return { amount, unit, count }; }
 });
 
-test('categories follow the scope document: granos y básicos, lácteos, aseo del hogar y otros', () => {
+test('papel higiénico y seda dental se miden en metros y se comparan por metro', () => {
+  const size = name => extractSize(normalizeName(name));
+  assert.deepEqual([size('Papel Higiénico 3 H 12 Un Rendy 33 Mts').amount, size('Papel Higiénico 3 H 12 Un Rendy 33 Mts').unit, size('Papel Higiénico 3 H 12 Un Rendy 33 Mts').count], [33, 'm', 12]);
+  assert.deepEqual([size('PAPEL HIGIÉNICO ROSAL 3P PLUS MEGA PACK 20M X15R').amount, size('PAPEL HIGIÉNICO ROSAL 3P PLUS MEGA PACK 20M X15R').count], [20, 15]);
+  assert.deepEqual([size('PAPEL HIGIENICO SCOTT DOBLE HOJA X 16 ROLLOS X 20M').amount, size('PAPEL HIGIENICO SCOTT DOBLE HOJA X 16 ROLLOS X 20M').count], [20, 16]);
+  assert.equal(size('Seda Dental Bucarine 50 Mts').unit, 'm');
+  assert.equal(size('Esponja Scotch Brite 3M X2').amount, null, 'la marca 3M no es una medida');
+  assert.equal(analyzeName('Papel Higiénico 3 H 12 Un Rendy 33 Mts').sizeLabel, '12 x 33 m');
+  // 12 rollos × 33 m = 396 m → $14.800 / 396 ≈ $37 por metro
+  assert.deepEqual(computeUnitPrice(14800, analyzeName('Papel Higiénico 3 H 12 Un Rendy 33 Mts')), { value: 37, per: 'm' });
+  assert.deepEqual(computeUnitPrice(2000, analyzeName('Leche Entera 1 Lt')), { value: 2000, per: 'L' }, 'las demás medidas no cambian');
+});
+
+test('categories follow the scope document (plus Aseo personal, approved 26-nov-2026)', () => {
   assert.equal(classifyCategory('Arroz Diana 500 G'), CATEGORY.BASICS);
   assert.equal(classifyCategory('Aceite Vegetal Imatá 900 Ml'), CATEGORY.BASICS);
   assert.equal(classifyCategory('Fríjol Cargamanto Rojo 500 G'), CATEGORY.BASICS);
@@ -31,9 +44,24 @@ test('categories follow the scope document: granos y básicos, lácteos, aseo de
   // falsos amigos
   assert.equal(classifyCategory('Arroz con Leche Roa 150 g'), CATEGORY.OTHERS);
   assert.equal(classifyCategory('Aceite Corporal Nivea 100 Ml'), CATEGORY.OTHERS);
-  assert.equal(classifyCategory('Dove Jabón Barra Leche de Coco 90 G'), CATEGORY.OTHERS);
   assert.equal(classifyCategory('Pan Tajado Multigranos 450 G'), CATEGORY.OTHERS);
   assert.equal(classifyCategory('Huevos Rojos AA X30'), CATEGORY.OTHERS);
+});
+
+test('Aseo personal: higiene básica; los jabones de lavar siguen en Aseo del hogar', () => {
+  for (const name of [
+    'Crema Dental Colgate Triple Acción 100 ml', 'Pasta Dental Oral-B 3 Und', 'Cepillo de Dientes Medio Bucarine 2 Und',
+    'Seda Dental Bucarine 50 Mts', 'Shampoo Tío Nacho Anticaída 415 Ml', 'Acondicionador Herbal Essences 250 ml',
+    'Desodorante Dove Aerosol 150 Ml', 'Antitranspirante Old Spice en Barra 50 g', 'Toallas Higiénicas Kotex Nocturna 8 un',
+    'Máquina de Afeitar Schick Quattro X 3', 'Pañuelos Familia 4 Paquetes', 'Pañitos Húmedos Almendra X 100 Und',
+    'Dove Jabón Barra Leche de Coco 90 G', 'Jabón Antibacterial Protex Avena 110 G', 'Jabon Tocador Protex 220 Gr',
+    'Jabón Íntimo Intibon Vinagre y Manzana 210 G'
+  ]) assert.equal(classifyCategory(name), CATEGORY.PERSONAL_CARE, name);
+  for (const name of [
+    'Jabón de Coco Bonaropa 200 Grs', 'Jabón en Barra Brilla King 300 Gr', 'Jabón Coco Varela Original 300 G',
+    'JAB DERSA BARRA LIMÓN 220G X3 UN', 'Jabón Líquido Panty Shower Ropa Íntima 300 Ml', 'Papel Higiénico Rendy 12 Un 33 Mts'
+  ]) assert.equal(classifyCategory(name), CATEGORY.HOME_CLEANING, name);
+  assert.equal(classifyCategory('Aceite Corporal Nivea 100 Ml'), CATEGORY.OTHERS, 'cuidado corporal no es higiene básica');
 });
 
 test('HU07: the same product in both stores becomes one card with two prices', () => {

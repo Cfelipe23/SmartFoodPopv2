@@ -94,6 +94,20 @@ test('actualización de precios: conserva ids, agrega nuevos y retira los que la
   assert.deepEqual(result.stats, { total: 3, updated: 1, created: 1, removed: 1, unchanged: 1 });
 });
 
+test('actualización de precios: un producto en «Otros» se reclasifica; otra categoría se respeta', () => {
+  const current = [
+    { id: 1, name: 'Crema Dental Colgate 100 ml', category_id: 4, unit: '100 ml', image_url: 'c', prices: [price(1, 5000, `${D1}/crema`)] },
+    { id: 2, name: 'Jabón Protex 110 G', category_id: 3, unit: '110 g', image_url: 'j', prices: [price(1, 3000, `${D1}/jabon`)] }
+  ];
+  const fresh = [
+    { name: 'Crema Dental Colgate 100 ml', category_id: 5, unit: '100 ml', image_url: 'c', prices: [price(1, 5000, `${D1}/crema/p`)] },
+    { name: 'Jabón Protex 110 G', category_id: 5, unit: '110 g', image_url: 'j', prices: [price(1, 3000, `${D1}/jabon/p`)] }
+  ];
+  const result = mergeCatalog(current, fresh, { minStoreRatio: 0 });
+  assert.equal(result.products.find(p => p.id === 1).category_id, 5, 'sale de «Otros» hacia Aseo personal');
+  assert.equal(result.products.find(p => p.id === 2).category_id, 3, 'una categoría ya asignada no se cambia');
+});
+
 test('actualización de precios: si una tienda sale incompleta se conservan sus precios anteriores', () => {
   const current = Array.from({ length: 10 }, (_, i) => ({
     id: i + 1, name: `P${i}`, category_id: 4, unit: '', image_url: '',

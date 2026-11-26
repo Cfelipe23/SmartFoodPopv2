@@ -1,4 +1,4 @@
-"""El scraper debe conservar las categorías del alcance: básicos, lácteos y aseo del hogar."""
+"""El scraper debe conservar las categorías del alcance: básicos, lácteos, aseo del hogar y aseo personal."""
 import os
 import sys
 import unittest
@@ -14,6 +14,29 @@ class TargetCategoriesTest(unittest.TestCase):
         self.assertTrue(scraper._matches_target_category(["/Lacteos y huevos/Leches/"]))
         self.assertTrue(scraper._matches_target_category(["/Hogar/Aseo y limpieza/Cuidado de la ropa/"]))
         self.assertTrue(scraper._matches_target_category(["/Hogar/Aseo y limpieza/Cuidado de superficies y cocina/"]))
+
+    def test_keeps_basic_personal_care(self):
+        for path in [
+            "/Cuidado personal y belleza/Papel higiénico y pañuelos/",
+            "/Cuidado personal y belleza/Cuidado oral/",
+            "/Cuidado personal y belleza/Jabonería/",
+            "/Cuidado personal y belleza/Desodorantes/",
+            "/Cuidado personal y belleza/Cuidado capilar/",
+            "/Cuidado personal y belleza/Protección femenina/",
+            "/Cuidado personal y belleza/Afeitado/",
+        ]:
+            self.assertTrue(scraper._matches_target_category([path]), path)
+
+    def test_discards_non_essential_personal_care(self):
+        for path in [
+            "/Cuidado personal y belleza/Cosmética y maquillaje/",
+            "/Cuidado personal y belleza/Cuidado facial/",
+            "/Cuidado personal y belleza/Fragancias/",
+            "/Cuidado personal y belleza/Botiquín OTC/",
+            "/Cuidado personal y belleza/Cuidado corporal/",
+            "/Infantil/Cuidado del bebé/",
+        ]:
+            self.assertFalse(scraper._matches_target_category([path]), path)
 
     def test_discards_unrelated_home_categories(self):
         self.assertFalse(scraper._matches_target_category(["/Hogar/Decohogar/"]))

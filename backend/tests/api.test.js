@@ -88,7 +88,7 @@ test('HU03/HU04/HU09: catálogo, búsqueda y filtros por tienda y categoría', a
   const all = await api.call('GET', '/products');
   assert.equal(all.status, 200);
   assert.ok(all.data.total > 100, 'catálogo del scraper cargado');
-  assert.deepEqual(all.data.categories.map(category => category.name), ['Granos y Básicos', 'Lácteos', 'Aseo del Hogar', 'Otros']);
+  assert.deepEqual(all.data.categories.map(category => category.name), ['Granos y Básicos', 'Lácteos', 'Aseo del Hogar', 'Otros', 'Aseo Personal']);
   assert.ok(all.data.products.every(product => product.name && product.prices.length && product.prices.every(price => price.price > 0 && price.store_id)));
 
   const search = await api.call('GET', '/products?search=arroz');

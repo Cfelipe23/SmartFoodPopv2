@@ -104,7 +104,11 @@ export async function bootstrapContainer({
     await persistence.init();
     store = createInMemoryStore();
     hasCatalog = await persistence.hasCatalog();
-    if (hasCatalog) await persistence.load(store);
+    if (hasCatalog) {
+      // Una base creada antes de añadir una categoría la recibe aquí, antes de cargar el catálogo.
+      await persistence.syncCategories(store.categories);
+      await persistence.load(store);
+    }
   } catch (error) {
     throw new Error(describeDbError(error));
   }

@@ -26,18 +26,19 @@ export function analysisOf(product: NamedProduct): ProductAnalysis {
   return analysis;
 }
 
-// Precio por kg o por litro, para comparar presentaciones de distinto tamaño.
-// Contenido total del empaque. En líquidos "200 Ml X6 Unds" son 6 envases de 200 ml;
-// en sólidos el peso indicado ya es el total ("Butifarra 450 G X18 Unds" pesa 450 g).
+// Precio por kg, por litro o por metro, para comparar presentaciones de distinto tamaño.
+// Contenido total del empaque. En líquidos "200 Ml X6 Unds" son 6 envases de 200 ml y en papel
+// "33 Mts X12" son 12 rollos de 33 m; en sólidos el peso indicado ya es el total ("Butifarra 450 G X18 Unds" pesa 450 g).
 function totalAmount(analysis: ProductAnalysis): number {
   const { amount, unit, count } = analysis.size;
   if (!amount) return 0;
-  return unit === 'ml' ? amount * count : amount;
+  return unit === 'g' ? amount : amount * count;
 }
 
 export function computeUnitPrice(price: unknown, analysis: ProductAnalysis): UnitPrice | null {
   const total = totalAmount(analysis);
   if (!total || !analysis.size.unit) return null;
+  if (analysis.size.unit === 'm') return { value: Math.round(Number(price) / total), per: 'm' };
   return { value: Math.round((Number(price) / total) * 1000), per: analysis.size.unit === 'g' ? 'kg' : 'L' };
 }
 

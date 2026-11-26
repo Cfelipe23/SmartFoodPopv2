@@ -59,7 +59,7 @@ export interface Favorite {
   product_id: number | null;
 }
 
-export type BaseUnit = 'g' | 'ml';
+export type BaseUnit = 'g' | 'ml' | 'm';
 
 export interface ProductSize {
   amount: number | null;
@@ -79,7 +79,7 @@ export interface ProductAnalysis {
 
 export interface UnitPrice {
   value: number;
-  per: 'kg' | 'L';
+  per: 'kg' | 'L' | 'm';
 }
 
 export interface ProductEquivalence {

@@ -10,7 +10,7 @@ React 19 y Vite 8 sirven el frontend ESM. Express 4 sirve la API REST desde un b
 
 - **Registro e inicio de sesión** con correo y contraseña (contraseñas cifradas con bcrypt).
 - **Catálogo** con unos 1.000 productos comparables entre D1 y Olímpica, obtenidos de las tiendas con un scraper.
-- **Búsqueda** por nombre, que ignora tildes y mayúsculas, y **filtros** por categoría (*Granos y básicos, Lácteos, Aseo del hogar, Otros*) y por tienda.
+- **Búsqueda** por nombre, que ignora tildes y mayúsculas, y **filtros** por categoría (*Granos y básicos, Lácteos, Aseo del hogar, Aseo personal, Otros*) y por tienda.
 - **Comparación de precios:** el mismo producto en ambas tiendas o su equivalente con **precio por kg/L**, marcando la opción más económica.
 - **Detalle del producto** con enlace a su página en la tienda, productos similares y **reseñas** con calificación.
 - **Ofertas** ordenadas por mayor descuento.
