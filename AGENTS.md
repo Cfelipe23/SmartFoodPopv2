@@ -124,8 +124,8 @@ El scraper necesita `python -m pip install -r scraper/requirements.txt`.
 **Requisitos:** [Node.js](https://nodejs.org) 20.19 o superior (LTS). Recomendados: [PostgreSQL](https://www.postgresql.org/download/) encendido y [Python](https://www.python.org) 3.10 o superior.
 
 ```bat
-git clone <url-del-repo>
-cd SmartFoodPopp-main
+git clone https://github.com/Cfelipe23/SmartFoodPopv2.git
+cd SmartFoodPopv2
 start.bat
 ```
 
