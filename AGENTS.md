@@ -41,7 +41,7 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 - **Dominio puro.** `backend/src/domain/` no hace E/S: recibe datos y devuelve datos. Ahí va la lógica que se puede probar sin servidor.
 - **KISS / YAGNI.** Elige la solución más simple que cumpla el criterio de aceptación. Nada de abstracciones «por si acaso».
 - **Bajo acoplamiento.** Si añadir una función obliga a modificar código no relacionado que ya funcionaba, repórtalo antes de seguir.
-- **Errores.** Los servicios lanzan `httpError(status, mensaje)` (`domain/httpError.js`) o `AuthError`. La API siempre responde `{ "error": "mensaje" }` con el código adecuado (400, 401, 403, 404, 409).
+- **Errores.** Los servicios lanzan `httpError(status, mensaje)` (`domain/httpError.ts`) o `AuthError`. La API siempre responde `{ "error": "mensaje" }` con el código adecuado (400, 401, 403, 404, 409).
 - **Frontend.** Los componentes no llaman a `fetch`: usan los hooks (`hooks/`), y estos usan `api/*` sobre el cliente único `api/httpClient.js`. La interfaz muestra lo que **el servidor confirmó**: nada de datos simulados ni actualizaciones optimistas que no se reviertan.
 - **Interfaz accesible.** Botones con `aria-label` cuando solo tienen icono, diálogos con `role="dialog"`/`alertdialog` y mensajes de estado visibles (carga, error, vacío).
 - **Cada cambio con su prueba.** Un comportamiento nuevo lleva prueba en la suite que corresponda (sección 8). Prioriza los casos límite sobre las pruebas redundantes.
@@ -52,8 +52,8 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 |---|---|
 | Un endpoint nuevo | `routes/<recurso>.js` (URL, verbo y middlewares) → `controllers/<recurso>Controller.js` (HTTP ↔ servicio) → método en un servicio existente o uno nuevo registrado en `container.js` → montarlo en `app.js` |
 | Una regla de negocio o validación | En el servicio del caso de uso (`services/`) |
-| Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.js`, `productClassifier.js`, `catalogBuilder.js`, `productEquivalence.js` |
-| Un filtro de búsqueda | `domain/productFilters.js` (servidor) y `frontend/src/utils/filterProducts.js` (cliente). Mantén ambos coherentes. |
+| Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.ts`, `productClassifier.ts`, `catalogBuilder.ts`, `productEquivalence.ts` |
+| Un filtro de búsqueda | `domain/productFilters.ts` (servidor) y `frontend/src/utils/filterProducts.js` (cliente). Mantén ambos coherentes. |
 | Guardar algo nuevo en la base | `data/schema.sql` (con `IF NOT EXISTS`), un método en `data/PostgresPersistence.js` y su equivalente vacío en `data/persistence.js` (`NoopPersistence`); el repositorio llama a la persistencia |
 | Una llamada nueva desde el frontend | `frontend/src/api/<recurso>Api.js` → hook en `hooks/` → componente |
 | Un componente visual | `frontend/src/components/<área>/`; los estilos compartidos están en `index.css` (clases `nav-btn`, `modal-content`, `product-card`, …) |
@@ -70,9 +70,9 @@ Cada uno corrige un defecto real que ya ocurrió (ver la sección 8.4).
 - **Categorías:** solo las cuatro del alcance: *Granos y básicos, Lácteos, Aseo del hogar, Otros*. **Tiendas:** solo D1 y Olímpica (Popayán).
 - **Comparación:** dos ofertas son «el mismo producto» solo si coinciden en contenido neto y tienen nombre similar. Nunca compares 500 g contra 5 kg como si fueran iguales; para presentaciones distintas usa el **precio por kg/L**.
 - **El catálogo público** solo lista productos comparables (sección 4.3).
-- **Los ids de los productos son estables.** La actualización del scraper es incremental (`domain/catalogRefresh.js`): reseñas y favoritos nunca se pierden por actualizar precios.
+- **Los ids de los productos son estables.** La actualización del scraper es incremental (`domain/catalogRefresh.ts`): reseñas y favoritos nunca se pierden por actualizar precios.
 - **Si una tienda trae menos del 50 % de los productos que tenía** (`MIN_STORE_RATIO`), se conservan sus precios anteriores. Si el scraper no obtiene casi nada, no sobrescribe el JSON.
-- **Enlaces «Ver en la tienda»:** siempre `https://<tienda>/<slug>/p` (`domain/productUrl.js`). Sin el `/p`, VTEX muestra un 404 o una búsqueda vacía.
+- **Enlaces «Ver en la tienda»:** siempre `https://<tienda>/<slug>/p` (`domain/productUrl.ts`). Sin el `/p`, VTEX muestra un 404 o una búsqueda vacía.
 - **Un JSON mal formado** en la petición responde 400, nunca 500.
 - **Secretos** fuera del repositorio: `backend/.env` y `scraper/cookies/` están en `.gitignore`.
 
@@ -102,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 | Capa | Tecnología |
 |---|---|
 | Frontend | React 19 + JavaScript (Vite), `lucide-react` para los iconos |
-| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Compilación CommonJS con TypeScript y fuentes JavaScript en la primera etapa. |
+| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Dominio y contratos en TypeScript estricto. El resto de las capas sigue en JavaScript y la compilación emite CommonJS. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
 
@@ -194,7 +194,8 @@ flowchart LR
 | Middleware | `middleware/authMiddleware.js` | `authenticateToken` y `requireAdmin`; recibe `TokenService` por inyección. |
 | Controladores | `controllers/` | Traducen HTTP ↔ servicio y serializan errores. |
 | Servicios | `services/` | `AuthService` (+ `PasswordHasher`, `TokenService`, `AuthError`), `ProductService` (listado y ofertas), `ProductDetailService`, `ProductComparisonService`, `ProductAdminService`, `ReviewService`, `FavoriteService`, `CatalogRefreshService`. |
-| Dominio | `domain/` | `productNormalizer`, `productClassifier`, `catalogBuilder`, `productEquivalence`, `catalogRefresh`, `productFilters`, `queryHelpers`, `productUrl`, `imageResolver`, `httpError`. |
+| Dominio | `domain/` | `entities.ts` define entidades, presentaciones, equivalencias y el resultado de actualización. Los módulos TypeScript `productNormalizer`, `productClassifier`, `catalogBuilder`, `productEquivalence`, `catalogRefresh`, `productFilters`, `queryHelpers`, `productUrl`, `imageResolver` y `httpError` contienen la lógica pura. |
+| Contratos | `contracts/` y `data/postgresRows.ts` | `scraper.ts` comprueba registros del JSON, `api.ts` describe entradas y respuestas HTTP, y `postgresRows.ts` describe las proyecciones SQL antes de convertir decimales y fechas. |
 | Repositorios | `repositories/` | `Product`, `Catalog` (tiendas y categorías), `User`, `Review`, `Favorite`. Leen de memoria y delegan la escritura a la persistencia. |
 | Datos | `data/` | `schema.sql`, `PostgresPersistence.js`, `persistence.js` (`NoopPersistence`), `inMemoryStore.js`, `initialData.js` (tiendas, categorías y cuentas demo), `scrapedProductsLoader.js`. |
 | Composición | `container.js` | `buildContainer` (también lo usan las pruebas) y `bootstrapContainer` (arranque con PostgreSQL). |
@@ -225,7 +226,7 @@ flowchart LR
 | `query_builder.py` | Deriva unas 400 búsquedas para Olímpica a partir de los productos de D1, para que haya con qué comparar. |
 | `writer.py` | Escritura atómica (`.tmp` → JSON) con respaldo `.bak`. |
 
-D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímpica solo se conserva la sección *Supermercado*. Cada producto se exporta así: `{ name, price, previous_price?, unit, store: "d1"|"olimpica", is_offer, offer_desc, image_url, source_url (…/p), scraped_at }`.
+D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímpica solo se conserva la sección *Supermercado*. El JSON exporta `name`, `price`, `original_price`, `store` (`d1` u `olimpica`), `is_offer`, `offer_desc`, `image_url`, `source_url`, `scraped_at` y `sku_id`. El lector acepta campos opcionales ausentes o nulos en archivos anteriores. El backend deduce la presentación del nombre, normaliza el enlace a `/p` y obtiene `previous_price` a partir de `original_price` y del precio vigente.
 
 ### 4.5 Frontend (`frontend/src`)
 
@@ -360,7 +361,7 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 
 | Nivel | Herramienta | Dónde |
 |---|---|---|
-| Unitarias (servicios, dominio, sustitución de dependencias) | `node:test` | `backend/tests/solid.test.js`, `catalog.test.js`, `catalogRefresh.test.js`, `equivalence.test.js`, `equivalence-quality.test.js` |
+| Unitarias (servicios, dominio, sustitución de dependencias) | `node:test` | `backend/tests/solid.test.js`, `catalog.test.js`, `catalogRefresh.test.js`, `equivalence.test.js`, `equivalence-quality.test.js`, `domainContracts.test.js` |
 | Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` (datos de `tests/fixtures/scraped_sample.json`) |
 | Persistencia | `node:test` + `pg-mem` (verificado también contra PostgreSQL 16 y 18 reales) | `backend/tests/postgres.test.js` |
 | Frontend (filtros, comparación, formato, validación del administrador) | `node:test` | `frontend/src/utils/*.test.js` |
@@ -372,6 +373,8 @@ Las pruebas del backend ejecutan el código compilado en `dist/`. Las de persist
 ### 8.2 Última ejecución (25-nov-2026)
 
 Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build correcto.
+
+Migración del dominio (26-nov-2026) · Backend 58/58 · chequeo de tipos y build correctos. La comparación antes y después con una copia fija del JSON incluyó productos, precios, ofertas, categorías, equivalencias y actualización con cobertura parcial.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 

@@ -1,8 +1,8 @@
-const { normalizeName } = require('./productNormalizer');
+import { normalizeName } from './productNormalizer';
 
 // Categorías del alcance (documento, sección 6.1 ítem 8):
 // Granos y básicos, Lácteos, Aseo del hogar y Otros.
-const CATEGORY = { BASICS: 1, DAIRY: 2, HOME_CLEANING: 3, OTHERS: 4 };
+export const CATEGORY = { BASICS: 1, DAIRY: 2, HOME_CLEANING: 3, OTHERS: 4 } as const;
 
 const HOME_WORDS = new Set([
   'detergente', 'suavizante', 'blanqueador', 'cloro', 'desinfectante', 'limpiador', 'limpiavidrios',
@@ -18,7 +18,7 @@ const BASICS_FIRST_WORDS = new Set([
 ]);
 const NOT_A_STAPLE_WORDS = ['leche', 'achocolatado', 'dulce', 'dental', 'tomate', 'corp', 'corporal', 'capilar', 'cabello', 'piel', 'bebe', 'masaje'];
 
-function classifyCategory(name) {
+export function classifyCategory(name: unknown): (typeof CATEGORY)[keyof typeof CATEGORY] {
   const words = normalizeName(name).replace(/[.,]/g, ' ').split(' ').filter(Boolean);
   const text = words.join(' ');
   const first = words[0] || '';
@@ -35,5 +35,3 @@ function classifyCategory(name) {
 
   return CATEGORY.OTHERS;
 }
-
-module.exports = { classifyCategory, CATEGORY };

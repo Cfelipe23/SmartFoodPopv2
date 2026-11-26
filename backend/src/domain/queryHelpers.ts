@@ -1,18 +1,23 @@
-function readTextParam(value) {
+import { httpError } from './httpError';
+
+export function readTextParam(value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
   if (typeof value !== 'string' && typeof value !== 'number') {
-    const error = new Error('Parámetro de búsqueda inválido'); error.status = 400; throw error;
+    throw httpError(400, 'Parámetro de búsqueda inválido');
   }
   return String(value).trim();
 }
-function normalizeText(value) {
+export function normalizeText(value: unknown): string {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
-function readCatalogItem(items, value, field) {
+export function readCatalogItem<Item extends { id: number }>(
+  items: readonly Item[],
+  value: string,
+  field: keyof Item
+): Item | null {
   if (!value) return null;
   const normalized = normalizeText(value);
   const found = items.find(item => normalizeText(item[field]) === normalized || String(item.id) === String(value));
-  if (!found) { const error = new Error(`${field === 'code' ? 'Tienda' : 'Categoría'} no válida: ${value}`); error.status = 400; throw error; }
+  if (!found) throw httpError(400, `${field === 'code' ? 'Tienda' : 'Categoría'} no válida: ${value}`);
   return found;
 }
-module.exports = { readTextParam, normalizeText, readCatalogItem };

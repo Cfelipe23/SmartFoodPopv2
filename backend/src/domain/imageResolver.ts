@@ -1,4 +1,4 @@
-function getProductImageByName(name, providedImageUrl) {
+export function getProductImageByName(name: string | null | undefined, providedImageUrl?: string | null): string {
   if (providedImageUrl && /^https?:\/\//i.test(providedImageUrl)) {
     return providedImageUrl;
   }
@@ -70,5 +70,3 @@ function getProductImageByName(name, providedImageUrl) {
 
   return 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
 }
-
-module.exports = { getProductImageByName };

@@ -1,5 +1,7 @@
 // Normalización de nombres de producto para comparar el mismo artículo entre tiendas (HU07).
 
+import type { BaseUnit, ProductAnalysis, ProductSize } from './entities';
+
 const STOPWORDS = new Set([
   'de', 'del', 'la', 'el', 'los', 'las', 'en', 'con', 'sin', 'y', 'a', 'para', 'por', 'al',
   'x', 'un', 'una', 'und', 'unds', 'unid', 'unidad', 'unidades', 'ud', 'uds', 'neto', 'pet',
@@ -15,21 +17,21 @@ const COUNT_PATTERNS = [
   /\b(\d+)\s*(?:unds?|unid|unidades|uds?)\b/
 ];
 
-function stripAccents(text) {
+export function stripAccents(text: unknown): string {
   return String(text ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-function normalizeName(name) {
+export function normalizeName(name: unknown): string {
   return stripAccents(name).toLowerCase().replace(/[^a-z0-9.,\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 // "2.500" → 2500 (separador de miles colombiano); "2,5" o "2.5" → 2.5
-function parseQuantity(raw) {
+export function parseQuantity(raw: string): number {
   if (/^\d{1,3}(\.\d{3})+$/.test(raw)) return Number(raw.replace(/\./g, ''));
   return Number(raw.replace(',', '.'));
 }
 
-function toBaseUnit(amount, unit) {
+function toBaseUnit(amount: number, unit: string): { amount: number; unit: BaseUnit } {
   if (/^(kgs?|kilos?)$/.test(unit)) return { amount: amount * 1000, unit: 'g' };
   if (/^(lts?|litros?|l)$/.test(unit)) return { amount: amount * 1000, unit: 'ml' };
   if (/^(ml|cc)$/.test(unit)) return { amount, unit: 'ml' };
@@ -37,9 +39,9 @@ function toBaseUnit(amount, unit) {
 }
 
 // Contenido neto (g / ml) y número de unidades del empaque, p. ej. "Leche 1,1 Lt X6 Unds" → 1100 ml × 6
-function extractSize(normalized) {
-  let amount = null;
-  let unit = null;
+export function extractSize(normalized: string): ProductSize {
+  let amount: number | null = null;
+  let unit: BaseUnit | null = null;
   let sizeText = '';
   const sizeMatch = normalized.match(SIZE_PATTERN);
   if (sizeMatch) {
@@ -59,11 +61,11 @@ function extractSize(normalized) {
   return { amount, unit, count, sizeText, countText };
 }
 
-function singularize(token) {
+function singularize(token: string): string {
   return token.length > 4 && token.endsWith('s') && !token.endsWith('ss') ? token.slice(0, -1) : token;
 }
 
-function extractTokens(normalized, size) {
+function extractTokens(normalized: string, size: ProductSize): string[] {
   let text = normalized;
   if (size.sizeText) text = text.replace(size.sizeText, ' ');
   if (size.countText) text = text.replace(size.countText, ' ');
@@ -73,12 +75,12 @@ function extractTokens(normalized, size) {
   return [...new Set(tokens)];
 }
 
-function sizeSignature(size) {
+function sizeSignature(size: ProductSize): string {
   if (size.amount === null && size.count === 1) return '';
   return `${size.amount ?? ''}${size.unit ?? ''}|${size.count}`;
 }
 
-function formatSizeLabel(size) {
+export function formatSizeLabel(size: ProductSize): string {
   let base = '';
   if (size.amount !== null) {
     if (size.unit === 'g') base = size.amount >= 1000 ? `${size.amount / 1000} kg` : `${size.amount} g`;
@@ -90,18 +92,18 @@ function formatSizeLabel(size) {
   return base || 'Unidad';
 }
 
-function toTitleCase(text) {
-  return String(text).toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (_, separator, letter) => separator + letter.toUpperCase());
+function toTitleCase(text: string): string {
+  return String(text).toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (_, separator: string, letter: string) => separator + letter.toUpperCase());
 }
 
 // Los nombres de Olímpica suelen venir en mayúsculas sostenidas.
-function cleanDisplayName(name) {
+export function cleanDisplayName(name: unknown): string {
   const trimmed = String(name ?? '').replace(/\s+/g, ' ').trim();
   const letters = trimmed.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, '');
   return letters && letters === letters.toUpperCase() ? toTitleCase(trimmed) : trimmed;
 }
 
-function analyzeName(name) {
+export function analyzeName(name: unknown): ProductAnalysis {
   const normalized = normalizeName(name);
   const size = extractSize(normalized);
   return {
@@ -113,11 +115,9 @@ function analyzeName(name) {
   };
 }
 
-function jaccard(tokensA, tokensB) {
+export function jaccard(tokensA: readonly string[], tokensB: readonly string[]): number {
   if (!tokensA.length || !tokensB.length) return 0;
   const setB = new Set(tokensB);
   const shared = tokensA.filter(token => setB.has(token)).length;
   return shared / (tokensA.length + tokensB.length - shared);
 }
-
-module.exports = { normalizeName, stripAccents, extractSize, analyzeName, jaccard, formatSizeLabel, cleanDisplayName, parseQuantity };
