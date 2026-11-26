@@ -102,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | React 19 + Vite, con API, sesión y utilidades en TypeScript estricto. Los componentes, hooks y contextos siguen en JavaScript y JSX. Los iconos usan `lucide-react`. |
+| Frontend | React 19 + Vite, con API, sesión, utilidades, hooks y contexto de autenticación en TypeScript estricto. `App.jsx` y los componentes visuales siguen en JSX. Los iconos usan `lucide-react`. |
 | Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Todo el código de aplicación en `backend/src/` usa TypeScript estricto y se compila a CommonJS. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
@@ -235,12 +235,14 @@ D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímp
 |---|---|
 | Composición | `App.jsx`: pestañas (catálogo, ofertas, guardados), filtros, paginación de 24 en 24, modales y avisos. |
 | Componentes | `layout/Header.jsx` (buscador, pestañas, menú de perfil con «Mis productos guardados»), `layout/HeroBanner.jsx`, `products/ProductCard.jsx`, `products/ProductDetailModal.jsx` (detalle, comparativa, guardar, reseñas), `auth/AuthModal.jsx`, `admin/AdminPanel.jsx`, `common/Toast.jsx` |
-| Estado | `context/AuthContext.jsx` y `authContext.js`; hooks `useAuth`, `useProducts` (catálogo y acciones del administrador), `useProductDetail`, `useFavorites` |
+| Estado | `context/AuthContext.tsx` proporciona la sesión tipada por `context/authContext.ts`. `hooks/useAuth.ts` consume el contexto. `useProducts.ts` gestiona catálogo y acciones administrativas, `useProductDetail.ts` el producto seleccionado y `useFavorites.ts` los guardados por usuario. |
 | API | `api/httpClient.ts` añade el token, normaliza los errores y cierra la sesión si el token caduca. Los módulos `authApi`, `productApi`, `reviewApi`, `favoriteApi`, `adminApi` y `healthApi` validan las respuestas con `responseGuards.ts`. |
 | Sesión | `storage/sessionStorage.ts` conserva las claves `smartfood_token` y `smartfood_user` en `localStorage`. |
 | Utilidades | `utils/filterProducts.ts` (búsqueda, filtros y orden de ofertas), `comparison.ts` (comparativa por tarjeta), `format.ts` (pesos colombianos y descuentos), `productPayload.ts` (validación del formulario del administrador) |
 
 `types/api.ts` reexporta solo tipos de los contratos HTTP y entidades que usa el backend. `types/presentation.ts` define las formas que necesitan las utilidades y el formulario. Ante un cambio de API, actualiza el contrato en el backend y su validación en `responseGuards.ts`, y comprueba ambos con el cliente y una respuesta real. Las referencias de tipos se eliminan del bundle y el chequeo necesita esos archivos del repositorio.
+
+El proveedor restaura el usuario local y escucha el evento de caducidad emitido por el cliente HTTP. Cada lectura de detalle queda asociada al identificador seleccionado y su efecto descarta respuestas tras un cambio de selección. Los cambios administrativos y de favoritos requieren una respuesta que confirme la operación antes de actualizar el estado.
 
 ### 4.6 Seguridad
 
@@ -374,7 +376,7 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 | Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` y `backend/tests/httpBoundary.test.js` |
 | Persistencia | `node:test` + `pg-mem` y pool simulado. Persistencia compilada verificada también en PostgreSQL 18.6 aislado. | `backend/tests/postgres.test.js`, `backend/tests/persistenceContracts.test.js` |
 | Autenticación | `node:test` con bcrypt y JWT | `backend/tests/authContracts.test.js` y los casos de autenticación de `api.test.js` |
-| Frontend (filtros, comparación, formato, formulario, HTTP y sesión) | `node:test` con el cargador de Vite | `frontend/src/utils/*.test.js` y `frontend/src/api/httpClient.test.js` |
+| Frontend (filtros, comparación, formato, formulario, HTTP, sesión y hooks) | `node:test` con el cargador de Vite y ReactDOM Server para el estado inicial y las acciones de los hooks | `frontend/src/utils/*.test.js`, `frontend/src/api/httpClient.test.js`, `frontend/src/context/authContext.test.js` y `frontend/src/hooks/*.test.js` |
 | Scraper (contrato, paginación, reintentos, categorías, búsquedas, URL) | `unittest` | `scraper/tests/` |
 | Estáticas | `tsc`, `oxlint`, `vite build` | `npm --prefix backend run typecheck`, `npm --prefix frontend run typecheck`, `npm run lint`, `npm run build` |
 
@@ -395,6 +397,8 @@ Migración HTTP (26-nov-2026) · Backend 64/64 · chequeo de tipos y build corre
 Con Node.js 20.19.0 en Windows se verificaron el build desde `dist/` vacío, `start.bat --no-scrape`, `npm start`, el cliente HTTP del frontend y la recarga del catálogo desde una copia de prueba.
 
 Migración de API, sesión y utilidades del frontend (26-nov-2026) · Frontend 15/15 · backend 64/64 · chequeo de tipos, lint y build correctos. La integración usó Express compilado en memoria y una muestra fija. Se verificaron catálogo, filtros, detalle, comparación, ofertas, sesión, reseñas, favoritos y administración.
+
+Migración de hooks y contexto (26-nov-2026) · Frontend 23/23, con chequeo de tipos, lint y build correctos · backend 64/64 con chequeo de tipos correcto. La integración combinó HTTP contra Express en memoria con una muestra fija y renderizado de `App.jsx` y `ProductCard.jsx` mediante ReactDOM Server. La comprobación visual y de efectos en navegador quedó pendiente por un fallo de acceso a Chrome.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 
@@ -453,6 +457,7 @@ Migración de API, sesión y utilidades del frontend (26-nov-2026) · Frontend 1
 - **Cobertura:** de unos 4.100 productos del scraper, cerca de 1.010 son comparables y se muestran; el resto no tiene contraparte en la otra tienda. Un producto que crea el administrador con una sola tienda y sin equivalente no aparece en el catálogo.
 - **Vigencia:** los precios son los del último scraping (campo `scraped_at` del JSON). No se garantiza que estén disponibles en la tienda física (excluido del alcance).
 - **Una sola instancia del backend:** las escrituras se encolan desde la memoria del proceso.
+- Si se cambia de cuenta mientras se guarda un favorito, la respuesta de la cuenta anterior puede hacer que la lista actual quede temporalmente vacía. El hook sigue filtrando los favoritos por el identificador del usuario activo.
 - **Direcciones de las tiendas** en `data/initialData.ts`. Son de referencia y deben verificarse antes de presentarlas como reales.
 - **Comparación por peso frente a unidad:** algunos productos que se venden por peso en una tienda y por unidad en la otra (p. ej. *Aguacate Hass Unidad*) dan diferencias de precio enormes.
 - **Inconsistencias del documento de alcance** (por corregir en el documento, no en el código): las fichas HU tienen vacío «Requerimiento asociado» y sin marcar la prioridad; el título de RF10 está repetido; HU11 falta en la sección 13; la numeración de criterios es irregular en HU01 y HU11; los sprints de HU07, HU09 y HU11 y los puntos de HU11 difieren entre la ficha, la matriz y el backlog; RF04 dice «buscar y filtrar» en la priorización; RF06 dice «aplicación» en lugar de «publicación».

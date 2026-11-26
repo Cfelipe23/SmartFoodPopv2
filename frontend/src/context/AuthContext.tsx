@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { sessionStorageService } from '../storage/sessionStorage';
 import { authApi } from '../api/authApi';
 import { AUTH_EXPIRED_EVENT } from '../api/httpClient';
+import type { PublicUser, SessionResponse } from '../types/api';
 import { AuthContext } from './authContext';
+import type { AuthContextValue } from './authContext';
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => sessionStorageService.getUser());
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<PublicUser | null>(() => sessionStorageService.getUser());
 
   // El cliente HTTP avisa cuando el token caducó o dejó de ser válido.
   useEffect(() => {
@@ -14,16 +17,17 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
   }, []);
 
-  const startSession = (data) => {
+  const startSession = (data: SessionResponse | null): string => {
+    if (data === null) throw new Error('La respuesta del servidor no contiene una sesión.');
     setUser(data.user);
     sessionStorageService.save(data.token, data.user);
     return data.message;
   };
 
-  const login = async (email, password) => startSession(await authApi.login(email, password));
-  const register = async (name, email, password) => startSession(await authApi.register(name, email, password));
+  const login: AuthContextValue['login'] = async (email, password) => startSession(await authApi.login(email, password));
+  const register: AuthContextValue['register'] = async (name, email, password) => startSession(await authApi.register(name, email, password));
 
-  const logout = () => {
+  const logout: AuthContextValue['logout'] = () => {
     setUser(null);
     sessionStorageService.clear();
   };
