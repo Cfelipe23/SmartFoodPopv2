@@ -6,10 +6,10 @@
     "types": ["node"],
     "rootDir": "src",
     "outDir": "dist",
-    "allowJs": true,
+    "allowJs": false,
     "strict": true,
     "noEmitOnError": true,
     "sourceMap": true
   },
-  "include": ["src/**/*.js", "src/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

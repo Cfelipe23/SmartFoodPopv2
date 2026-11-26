@@ -27,6 +27,8 @@ if not exist "backend\node_modules\typescript\bin\tsc" set "INSTALL_BACKEND_DEPS
 if not exist "backend\node_modules\@types\pg\package.json" set "INSTALL_BACKEND_DEPS=1"
 if not exist "backend\node_modules\@types\bcryptjs\package.json" set "INSTALL_BACKEND_DEPS=1"
 if not exist "backend\node_modules\@types\jsonwebtoken\package.json" set "INSTALL_BACKEND_DEPS=1"
+if not exist "backend\node_modules\@types\express\package.json" set "INSTALL_BACKEND_DEPS=1"
+if not exist "backend\node_modules\@types\cors\package.json" set "INSTALL_BACKEND_DEPS=1"
 if defined INSTALL_BACKEND_DEPS (
   echo Instalando dependencias del backend...
   call npm --prefix backend install

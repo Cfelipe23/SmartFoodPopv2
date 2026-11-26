@@ -37,7 +37,7 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 ### 1.3 Principios
 
 - **Capas con una sola responsabilidad (SOLID).** Ruta → middleware → controlador → servicio → repositorio → persistencia. Las validaciones de negocio van en los **servicios**, no en los controladores.
-- **Inyección de dependencias.** Todo se construye en `backend/src/container.js` (*composition root*). Un servicio recibe sus colaboradores por constructor; nunca hace `require` de otro servicio ni crea repositorios por su cuenta.
+- **Inyección de dependencias.** Todo se construye en `backend/src/container.ts` (*composition root*). Un servicio recibe sus colaboradores por constructor; nunca hace `require` de otro servicio ni crea repositorios por su cuenta.
 - **Dominio puro.** `backend/src/domain/` no hace E/S: recibe datos y devuelve datos. Ahí va la lógica que se puede probar sin servidor.
 - **KISS / YAGNI.** Elige la solución más simple que cumpla el criterio de aceptación. Nada de abstracciones «por si acaso».
 - **Bajo acoplamiento.** Si añadir una función obliga a modificar código no relacionado que ya funcionaba, repórtalo antes de seguir.
@@ -50,7 +50,7 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 
 | Quiero… | Dónde |
 |---|---|
-| Un endpoint nuevo | `routes/<recurso>.js` (URL, verbo y middlewares) → `controllers/<recurso>Controller.js` (HTTP ↔ servicio) → método en un servicio existente o uno nuevo registrado en `container.js` → montarlo en `app.js` |
+| Un endpoint nuevo | `routes/<recurso>.ts` (URL, verbo y middlewares) → `controllers/<recurso>Controller.ts` (HTTP ↔ servicio) → método en un servicio existente o uno nuevo registrado en `container.ts` → montarlo en `app.ts` |
 | Una regla de negocio o validación | En el servicio del caso de uso (`services/`) |
 | Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.ts`, `productClassifier.ts`, `catalogBuilder.ts`, `productEquivalence.ts` |
 | Un filtro de búsqueda | `domain/productFilters.ts` (servidor) y `frontend/src/utils/filterProducts.js` (cliente). Mantén ambos coherentes. |
@@ -102,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 | Capa | Tecnología |
 |---|---|
 | Frontend | React 19 + JavaScript (Vite), `lucide-react` para los iconos |
-| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Dominio, contratos, datos, repositorios y servicios en TypeScript estricto. La compilación emite CommonJS y la capa HTTP sigue en JavaScript. |
+| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Todo el código de aplicación en `backend/src/` usa TypeScript estricto y se compila a CommonJS. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
 
@@ -137,7 +137,7 @@ start.bat
 `start.bat` (también con doble clic) prepara todo y arranca:
 
 1. Comprueba Node.js y su versión.
-2. Instala las dependencias del backend si falta el compilador TypeScript o los tipos de `pg`, `bcryptjs` o `jsonwebtoken`, y las del frontend si falta su carpeta `node_modules`.
+2. Instala las dependencias del backend si falta el compilador TypeScript o los tipos de sus bibliotecas, y las del frontend si falta su carpeta `node_modules`.
 3. Si hay Python, instala `scraper/requirements.txt` cuando falte `requests`. Sin Python, la app usa los precios guardados.
 4. Si no existe `backend/.env`, configura PostgreSQL **automáticamente** (`npm run db:setup`): busca el servidor en los puertos 5432–5434 y pide **una sola vez** la contraseña del usuario `postgres`, la que se eligió al instalar PostgreSQL. Esa clave no se puede automatizar porque solo la conoce quien lo instaló. Admite 3 intentos; luego crea la base `smartfoodpop` y escribe `backend/.env`, que no se sube a git. Las tablas y el catálogo los crea el backend al arrancar. Si PostgreSQL no está instalado o está apagado (detecta el servicio de Windows y explica cómo iniciarlo), la app arranca **en memoria** y en el siguiente arranque lo vuelve a intentar.
 5. Ejecuta `node run-dev.js`, que levanta el backend en `:5000`, el frontend en la URL «Local» que muestra Vite (normalmente `:5173`) y el scraper en segundo plano. Acepta los mismos argumentos (`start.bat --no-scrape`).
@@ -191,21 +191,21 @@ flowchart LR
 | Capa | Carpeta | Contenido |
 |---|---|---|
 | Rutas | `routes/` | `auth`, `products`, `reviews`, `favorites`, `admin`. Cada una recibe su controlador y el middleware. |
-| Middleware | `middleware/authMiddleware.js` | `authenticateToken` y `requireAdmin`; recibe `TokenService` por inyección. |
+| Middleware | `middleware/authMiddleware.ts`, `errorMiddleware.ts` | Verificación JWT, autorización por rol y respuesta central de errores. La solicitud lleva un usuario opcional. |
 | Controladores | `controllers/` | Traducen HTTP ↔ servicio y serializan errores. |
 | Servicios | `services/` | Módulos TypeScript `AuthService` (+ `PasswordHasher`, `TokenService`, `AuthError`), `ProductService` (listado y ofertas), `ProductDetailService`, `ProductComparisonService`, `ProductAdminService`, `ReviewService`, `FavoriteService`, `CatalogRefreshService`. |
 | Dominio | `domain/` | `entities.ts` define entidades, presentaciones, equivalencias y el resultado de actualización. Los módulos TypeScript `productNormalizer`, `productClassifier`, `catalogBuilder`, `productEquivalence`, `catalogRefresh`, `productFilters`, `queryHelpers`, `productUrl`, `imageResolver` y `httpError` contienen la lógica pura. |
 | Contratos | `contracts/` y `data/postgresRows.ts` | `scraper.ts` comprueba registros del JSON, `api.ts` describe entradas y respuestas HTTP, y `postgresRows.ts` describe las proyecciones SQL antes de convertir decimales y fechas. |
 | Repositorios | `repositories/` | Clases TypeScript `ProductRepository`, `CatalogRepository` (tiendas y categorías), `UserRepository`, `ReviewRepository` y `FavoriteRepository`. Leen de memoria y delegan la escritura al contrato `Persistence`. |
 | Datos | `data/` | `schema.sql`, `PostgresPersistence.ts`, `persistence.ts` (`Persistence`, `CatalogPersistence` y `NoopPersistence`), `inMemoryStore.ts`, `initialData.ts` (tiendas, categorías y cuentas demo), `scrapedProductsLoader.ts`. |
-| Composición | `container.js` | `buildContainer` (también lo usan las pruebas) y `bootstrapContainer` (arranque con PostgreSQL). |
+| Composición | `container.ts`, `app.ts`, `config/env.ts` | `buildContainer`, `bootstrapContainer`, configuración del entorno y montaje de Express. |
 | Scripts | `backend/scripts/` | `setup-db.js` y `check-db.js`. Sus comandos npm compilan el backend y cargan la persistencia desde `dist/`. |
 
 ### 4.2 Persistencia y arranque
 
 1. `bootstrapContainer` crea el esquema si no existe. Si la base ya tiene catálogo, lo carga en memoria y aplica el JSON más reciente del scraper (actualización incremental). Si es el primer arranque, construye el catálogo desde el JSON y lo guarda.
 2. **Las lecturas** se sirven desde memoria. **Las escrituras** (usuarios, reseñas, favoritos, productos) se encolan en orden hacia PostgreSQL. Por eso hay una sola instancia del backend (sección 10).
-3. `server.js` vigila el JSON del scraper (`CatalogRefreshService.watch`) y lo aplica cuando cambia.
+3. `server.ts` carga `backend/.env` antes de evaluar la configuración, vigila el JSON del scraper (`CatalogRefreshService.watch`) y aplica los cambios.
 
 ### 4.3 Construcción del catálogo (RF03, RF07, RF08)
 
@@ -307,19 +307,24 @@ Reglas: el correo es único; hay un precio por producto y tienda (`UNIQUE (produ
 
 | Método y ruta | Acceso | RF | Respuesta |
 |---|---|---|---|
-| `POST /auth/register` | Público | RF01 | `{name,email,password}` → 201 con token y mensaje · 400 si hay error de validación · 409 si el correo existe |
-| `POST /auth/login` | Público | RF02 | 200 con token · 400 si hay campos vacíos · 401 «Credenciales incorrectas» |
-| `GET /auth/me` | Usuario | RF02 | Datos de la sesión · 401 sin token · 403 con token inválido |
-| `GET /products` | Público | RF03, RF04, RF09 | `{products, stores, categories, total, message?}`. Filtros: `search`, `category`, `store`, `is_offer`. Un filtro inválido da 400. |
-| `GET /products/offers` | Público | RF08 | Productos con oferta |
-| `GET /products/compare` | Público | RF07 | Precio mínimo, máximo y ahorro potencial |
-| `GET /products/:id` | Público | RF05–RF07 | Detalle, precios por tienda, reseñas, `review_summary` y productos similares · 404 si no existe |
-| `GET /reviews/product/:id` | Público | RF06 | Reseñas del producto |
-| `POST /reviews` | Usuario | RF06 | `{product_id, rating 1–5, comment}` → 201 |
-| `GET /favorites` | Usuario | RF10 | Productos guardados del usuario |
-| `POST /favorites/toggle` | Usuario | RF10 | `{product_id}` → `{isFavorite, message}` |
-| `POST /admin/products`, `PUT /admin/products/:id`, `DELETE /admin/products/:id` | Admin | RF11 | Crear, editar o eliminar, con un mensaje de confirmación |
-| `GET /health` | Público | — | `{status, storage: "postgres" \| "memory"}` |
+| `GET /` | Público | — | 200 con `{app, city, version, status, endpoints}` |
+| `POST /auth/register` | Público | RF01 | `{name,email,password}` → 201 con `{user, token, message}` · 400 por validación · 409 si el correo existe |
+| `POST /auth/login` | Público | RF02 | `{email,password}` → 200 con `{user, token, message}` · 400 por campos vacíos · 401 «Credenciales incorrectas» |
+| `GET /auth/me` | Usuario | RF02 | 200 con `{user}` a partir del JWT verificado |
+| `GET /products` | Público | RF03, RF04, RF09 | 200 con `{products, stores, categories, total, message}`. Consultas `search`, `category`, `store`, `is_offer` · 400 por parámetro inválido |
+| `GET /products/offers` | Público | RF08 | 200 con `{total, offers}` |
+| `GET /products/compare` | Público | RF07 | 200 con `{total, products, message}` y precio mínimo, máximo y ahorro potencial por producto. Consultas `search`, `category`, `store` · 400 por parámetro inválido |
+| `GET /products/:id` | Público | RF05–RF07 | 200 con `{product, reviews, review_summary, similar}` · 404 si el ID no corresponde a un producto |
+| `GET /reviews/product/:productId` | Público | RF06 | 200 con `{reviews}`, lista vacía si no hay coincidencia |
+| `POST /reviews` | Usuario | RF06 | `{product_id, rating, comment}` → 201 con `{review, message}` · 400 por validación · 404 si el producto no existe |
+| `GET /favorites` | Usuario | RF10 | 200 con `{favorites}` |
+| `POST /favorites/toggle` | Usuario | RF10 | `{product_id}` → 200 con `{isFavorite, message}` · 400 si falta el ID · 404 si el producto no existe |
+| `POST /admin/products` | Admin | RF11 | `{name, category_id, prices, description?, unit?, image_url?}` → 201 con `{product, message}` · 400 por validación |
+| `PUT /admin/products/:id` | Admin | RF11 | Cuerpo parcial del alta → 200 con `{product, message}` · 400 por validación · 404 si el producto no existe |
+| `DELETE /admin/products/:id` | Admin | RF11 | 200 con `{message}` · 404 si el producto no existe |
+| `GET /health` | Público | — | 200 con `{status, storage: "postgres" \| "memory"}` |
+
+Express aplica CORS y luego el lector JSON. En rutas protegidas, `authenticateToken` devuelve 401 si falta el token y 403 si es inválido o expiró. En rutas de administración, `requireAdmin` se ejecuta después y devuelve 403 si falta el rol `admin`. El preflight de CORS responde 204. Una ruta desconocida bajo `/api` devuelve 404. Los errores JSON llevan `{error}`. El manejador central devuelve 400 para JSON mal formado y 500 para otros errores inesperados, con un mensaje genérico.
 
 ### 6.2 Pantallas
 
@@ -362,7 +367,7 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 | Nivel | Herramienta | Dónde |
 |---|---|---|
 | Unitarias (servicios, dominio, sustitución de dependencias) | `node:test` | `backend/tests/solid.test.js`, `catalog.test.js`, `catalogRefresh.test.js`, `equivalence.test.js`, `equivalence-quality.test.js`, `domainContracts.test.js` |
-| Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` (datos de `tests/fixtures/scraped_sample.json`) |
+| Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` y `backend/tests/httpBoundary.test.js` |
 | Persistencia | `node:test` + `pg-mem` y pool simulado. Persistencia compilada verificada también en PostgreSQL 18.6 aislado. | `backend/tests/postgres.test.js`, `backend/tests/persistenceContracts.test.js` |
 | Autenticación | `node:test` con bcrypt y JWT | `backend/tests/authContracts.test.js` y los casos de autenticación de `api.test.js` |
 | Frontend (filtros, comparación, formato, validación del administrador) | `node:test` | `frontend/src/utils/*.test.js` |
@@ -380,6 +385,10 @@ Migración del dominio (26-nov-2026) · Backend 58/58 · chequeo de tipos y buil
 Migración de persistencia y repositorios (26-nov-2026) · Backend 60/60 · chequeo de tipos y build correctos. Las dos pruebas nuevas cubren el mapeo de filas y el orden de la cola tras un rollback.
 
 Migración de servicios (26-nov-2026) · Backend 62/62 · chequeo de tipos y build correctos. Antes de migrar se verificaron el esquema, las conversiones, el orden de escritura, el rollback, el cierre, el reinicio y la fusión de productos en un clúster PostgreSQL 18.6 temporal.
+
+Migración HTTP (26-nov-2026) · Backend 64/64 · chequeo de tipos y build correctos. La comparación antes y después con una muestra fija cubrió los 16 endpoints explícitos y 54 casos HTTP con la misma huella de respuestas.
+
+Con Node.js 20.19.0 en Windows se verificaron el build desde `dist/` vacío, `start.bat --no-scrape`, `npm start`, el cliente HTTP del frontend y la recarga del catálogo desde una copia de prueba.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 

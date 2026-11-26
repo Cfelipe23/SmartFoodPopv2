@@ -1,4 +1,4 @@
-const path = require('path');
+import { join } from 'node:path';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -6,7 +6,7 @@ if (isProduction && !process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET es obligatorio cuando NODE_ENV=production');
 }
 
-module.exports = {
+const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   IS_PRODUCTION: isProduction,
   PORT: process.env.PORT || 5000,
@@ -22,5 +22,7 @@ module.exports = {
   // Si es "true", reconstruye el catálogo en la base desde el JSON del scraper.
   RESEED_CATALOG: process.env.RESEED_CATALOG === 'true',
   SCRAPED_PRODUCTS_PATH: process.env.SCRAPED_PRODUCTS_PATH
-    || path.join(__dirname, '../../../scraper/output/scraped_products_api.json')
+    || join(__dirname, '../../../scraper/output/scraped_products_api.json')
 };
+
+export = env;

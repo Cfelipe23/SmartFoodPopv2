@@ -4,7 +4,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 
 Proyecto de la asignatura *Construcción de Software*.
 
-**Stack:** React (Vite) · Node.js + Express · PostgreSQL · scraper en Python.
+**Stack:** React (Vite) · Node.js + Express con TypeScript · PostgreSQL · scraper en Python.
 
 ## Funcionalidades
 

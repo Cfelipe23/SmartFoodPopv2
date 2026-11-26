@@ -1,32 +1,51 @@
-const { createInMemoryStore } = require('./data/inMemoryStore');
-const { loadScrapedProducts } = require('./data/scrapedProductsLoader');
-const { NoopPersistence } = require('./data/persistence');
-const { PostgresPersistence, describeDbError } = require('./data/PostgresPersistence');
-const env = require('./config/env');
-const ProductRepository = require('./repositories/ProductRepository');
-const CatalogRepository = require('./repositories/CatalogRepository');
-const UserRepository = require('./repositories/UserRepository');
-const ReviewRepository = require('./repositories/ReviewRepository');
-const FavoriteRepository = require('./repositories/FavoriteRepository');
-const ProductService = require('./services/ProductService');
-const { ProductDetailService } = require('./services/ProductDetailService');
-const ProductComparisonService = require('./services/ProductComparisonService');
-const ProductAdminService = require('./services/ProductAdminService');
-const CatalogRefreshService = require('./services/CatalogRefreshService');
-const ReviewService = require('./services/ReviewService');
-const FavoriteService = require('./services/FavoriteService');
-const { AuthService } = require('./services/AuthService');
-const { BcryptPasswordHasher } = require('./services/PasswordHasher');
-const TokenService = require('./services/TokenService');
+import env = require('./config/env');
+import type { HealthResponse } from './contracts/api';
+import { createInMemoryStore } from './data/inMemoryStore';
+import type { InMemoryStore } from './data/inMemoryStore';
+import { loadScrapedProducts } from './data/scrapedProductsLoader';
+import { NoopPersistence } from './data/persistence';
+import type { CatalogPersistence, Persistence } from './data/persistence';
+import { PostgresPersistence, describeDbError } from './data/PostgresPersistence';
+import ProductRepository = require('./repositories/ProductRepository');
+import CatalogRepository = require('./repositories/CatalogRepository');
+import UserRepository = require('./repositories/UserRepository');
+import ReviewRepository = require('./repositories/ReviewRepository');
+import FavoriteRepository = require('./repositories/FavoriteRepository');
+import ProductService = require('./services/ProductService');
+import { ProductDetailService } from './services/ProductDetailService';
+import ProductComparisonService = require('./services/ProductComparisonService');
+import ProductAdminService = require('./services/ProductAdminService');
+import CatalogRefreshService = require('./services/CatalogRefreshService');
+import ReviewService = require('./services/ReviewService');
+import FavoriteService = require('./services/FavoriteService');
+import { AuthService } from './services/AuthService';
+import { BcryptPasswordHasher } from './services/PasswordHasher';
+import TokenService = require('./services/TokenService');
+
+interface CatalogOptions {
+  logger?: Pick<Console, 'log' | 'warn'>;
+  scrapedPath?: string;
+}
+
+interface ContainerOptions extends CatalogOptions {
+  store?: InMemoryStore;
+  persistence?: Persistence;
+  loadCatalog?: boolean;
+}
+
+interface BootstrapOptions extends CatalogOptions {
+  persistence?: CatalogPersistence | null;
+  reseedCatalog?: boolean;
+}
 
 // Composition root: construye repositorios y servicios con sus dependencias.
-function buildContainer({
+export function buildContainer({
   store = createInMemoryStore(),
   persistence = new NoopPersistence(),
   loadCatalog = true,
   scrapedPath = env.SCRAPED_PRODUCTS_PATH,
   logger = console
-} = {}) {
+}: ContainerOptions = {}) {
   const productRepository = new ProductRepository(store, persistence);
   const catalogRepository = new CatalogRepository(store);
   const userRepository = new UserRepository(store, persistence);
@@ -37,10 +56,11 @@ function buildContainer({
 
   if (loadCatalog) loadScrapedProducts(productRepository, scrapedPath, logger);
 
+  const storage: HealthResponse['storage'] = persistence instanceof NoopPersistence ? 'memory' : 'postgres';
   return {
     store,
     persistence,
-    storage: persistence instanceof NoopPersistence ? 'memory' : 'postgres',
+    storage,
     tokenService,
     productService: new ProductService({ productRepository, catalogRepository }),
     productDetailService: new ProductDetailService({ productRepository, catalogRepository, reviewRepository }),
@@ -53,15 +73,22 @@ function buildContainer({
   };
 }
 
+export type Container = ReturnType<typeof buildContainer>;
+
 // Arranque con persistencia: PostgreSQL si está configurado; memoria (solo desarrollo) en caso contrario.
-async function bootstrapContainer({ logger = console, persistence = PostgresPersistence.fromEnv(env), reseedCatalog = env.RESEED_CATALOG, scrapedPath = env.SCRAPED_PRODUCTS_PATH } = {}) {
+export async function bootstrapContainer({
+  logger = console,
+  persistence = PostgresPersistence.fromEnv(env),
+  reseedCatalog = env.RESEED_CATALOG,
+  scrapedPath = env.SCRAPED_PRODUCTS_PATH
+}: BootstrapOptions = {}): Promise<Container> {
   if (!persistence) {
     logger.warn('⚠️ PostgreSQL no está configurado (DATABASE_URL o PGHOST/PGUSER): los datos se guardan SOLO en memoria y se pierden al reiniciar.');
     return buildContainer({ logger, scrapedPath });
   }
 
-  let store;
-  let hasCatalog;
+  let store: InMemoryStore;
+  let hasCatalog: boolean;
   try {
     await persistence.init();
     store = createInMemoryStore();
@@ -88,5 +115,3 @@ async function bootstrapContainer({ logger = console, persistence = PostgresPers
   logger.log(`🐘 PostgreSQL: catálogo inicial guardado (${store.products.length} productos).`);
   return container;
 }
-
-module.exports = { buildContainer, bootstrapContainer };
