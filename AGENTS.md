@@ -134,7 +134,7 @@ start.bat
 1. Comprueba Node.js y su versión.
 2. Instala las dependencias de `backend` y `frontend` si falta `node_modules`.
 3. Si hay Python, instala `scraper/requirements.txt` cuando falte `requests`. Sin Python, la app usa los precios guardados.
-4. Si no existe `backend/.env`, pregunta si configurar PostgreSQL (`db:setup`: pide la clave del usuario `postgres`, crea la base y el `.env`). Si se responde «N» o falla, la app arranca **en memoria**.
+4. Si no existe `backend/.env`, configura PostgreSQL **automáticamente** (`npm run db:setup`): busca el servidor en los puertos 5432–5434 y pide **una sola vez** la contraseña del usuario `postgres`, la que se eligió al instalar PostgreSQL. Esa clave no se puede automatizar porque solo la conoce quien lo instaló. Admite 3 intentos; luego crea la base `smartfoodpop` y escribe `backend/.env`, que no se sube a git. Las tablas y el catálogo los crea el backend al arrancar. Si PostgreSQL no está instalado o está apagado (detecta el servicio de Windows y explica cómo iniciarlo), la app arranca **en memoria** y en el siguiente arranque lo vuelve a intentar.
 5. Ejecuta `node run-dev.js`, que levanta el backend en `:5000`, el frontend en la URL «Local» que muestra Vite (normalmente `:5173`) y el scraper en segundo plano. Acepta los mismos argumentos (`start.bat --no-scrape`).
 
 Lo que viene en el repositorio basta para funcionar sin internet: `scraper/output/scraped_products_api.json` trae el último catálogo. Lo que **no** viene, y se genera en cada equipo: `node_modules/`, `backend/.env` y `scraper/cookies/` (las crea el scraper). Verificado con un clon limpio el 25-nov-2026.
