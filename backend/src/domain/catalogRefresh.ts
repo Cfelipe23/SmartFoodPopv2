@@ -1,5 +1,6 @@
 import type { CatalogRefreshResult, Product, ProductPrice } from './entities';
 import { productUrlKey } from './productUrl';
+import { CatalogRefreshResultBuilder } from './CatalogRefreshResultBuilder';
 
 // Si una tienda trae menos de esta fracción de los productos que ya había, se asume que el
 // scraping de esa tienda falló (bloqueo, caída de la API) y sus precios actuales se conservan.
@@ -51,11 +52,10 @@ export function mergeCatalog(
       if (key && !ownerByKey.has(key)) ownerByKey.set(key, product.id);
     }
   }
-  const currentById = new Map(currentProducts.map(product => [product.id, product]));
+  const result = new CatalogRefreshResultBuilder();
 
   let nextId = currentProducts.reduce((max, product) => Math.max(max, product.id), 0) + 1;
   const claimed = new Map<number, FreshCard>(); // id existente -> tarjeta nueva
-  const newProducts: Product[] = [];
   const keyDestination = new Map<string | null, number>(); // clave de precio -> id final
 
   for (const card of freshCards) {
@@ -68,21 +68,15 @@ export function mergeCatalog(
     }
     const [target] = [...votes].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([id]) => id);
     const entry = { ...card, prices };
+    const finalId = target ?? nextId++;
     if (target !== undefined) claimed.set(target, entry);
-    else newProducts.push({ ...entry, id: nextId++ });
-    const finalId = target !== undefined ? target : nextId - 1;
+    else result.create({ ...entry, id: finalId });
     for (const price of prices) keyDestination.set(priceKey(price), finalId);
   }
 
   // Precios que se conservan del producto actual: los de tiendas omitidas y los cargados a mano.
   const keptPrices = (product: Product, coveredStores: ReadonlySet<StoreId>) => (product.prices || []).filter(price =>
     !coveredStores.has(price.store_id) && (skippedStores.has(price.store_id) || !priceKey(price)));
-
-  const products: Product[] = [];
-  const changedProducts: Product[] = [];
-  const removedIds: number[] = [];
-  const remap = new Map<number, number>();
-  let updated = 0;
 
   for (const current of currentProducts) {
     const card = claimed.get(current.id);
@@ -99,25 +93,14 @@ export function mergeCatalog(
     } else {
       next = { ...current, prices: keptPrices(current, new Set()) };
       if (!next.prices.length) {
-        removedIds.push(current.id);
         const moved = (current.prices || []).map(price => keyDestination.get(priceKey(price))).find(id => id !== undefined);
-        if (moved !== undefined) remap.set(current.id, moved);
+        result.remove(current.id, moved);
         continue;
       }
     }
-    products.push(next);
-    if (snapshot(next) !== snapshot(current)) { changedProducts.push(next); updated++; }
+    if (snapshot(next) !== snapshot(current)) result.update(next);
+    else result.keep(next);
   }
 
-  products.push(...newProducts);
-  changedProducts.push(...newProducts);
-
-  return {
-    products,
-    changedProducts,
-    removedIds,
-    remap,
-    skippedStores: [...skippedStores],
-    stats: { total: products.length, updated, created: newProducts.length, removed: removedIds.length, unchanged: currentById.size - updated - removedIds.length }
-  };
+  return result.build(skippedStores);
 }

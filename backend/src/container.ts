@@ -3,6 +3,7 @@ import type { HealthResponse } from './contracts/api';
 import { createInMemoryStore } from './data/inMemoryStore';
 import type { InMemoryStore } from './data/inMemoryStore';
 import { loadScrapedProducts } from './data/scrapedProductsLoader';
+import { ScrapedCatalogAdapter } from './data/ScrapedCatalogAdapter';
 import { NoopPersistence } from './data/persistence';
 import type { CatalogPersistence, Persistence } from './data/persistence';
 import { PostgresPersistence, describeDbError } from './data/PostgresPersistence';
@@ -12,6 +13,9 @@ import UserRepository = require('./repositories/UserRepository');
 import ReviewRepository = require('./repositories/ReviewRepository');
 import FavoriteRepository = require('./repositories/FavoriteRepository');
 import ProductService = require('./services/ProductService');
+import { CatalogEquivalenceIndex, EquivalenceIndexProxy } from './services/EquivalenceIndexProxy';
+import { CatalogFacade } from './services/CatalogFacade';
+import { basePrice, withStore, withUnitPrice } from './services/pricePresenter';
 import { ProductDetailService } from './services/ProductDetailService';
 import ProductComparisonService = require('./services/ProductComparisonService');
 import ProductAdminService = require('./services/ProductAdminService');
@@ -54,18 +58,25 @@ export function buildContainer({
   const passwordHasher = new BcryptPasswordHasher();
   const tokenService = new TokenService({ secret: env.JWT_SECRET });
 
-  if (loadCatalog) loadScrapedProducts(productRepository, scrapedPath, logger);
+  const source = new ScrapedCatalogAdapter(scrapedPath);
+  if (loadCatalog) loadScrapedProducts(productRepository, source, logger);
 
-  const storage: HealthResponse['storage'] = persistence instanceof NoopPersistence ? 'memory' : 'postgres';
+  const storage: HealthResponse['storage'] = persistence.storage ?? 'postgres';
+  const equivalences = new EquivalenceIndexProxy(new CatalogEquivalenceIndex(productRepository), productRepository);
+  const storePrice = withStore(basePrice, catalogRepository);
+  const productService = new ProductService({ productRepository, catalogRepository, equivalences, unitPrice: withUnitPrice(basePrice) });
+  const productDetailService = new ProductDetailService({ productRepository, catalogRepository, reviewRepository, detailPrice: withUnitPrice(storePrice) });
+  const productComparisonService = new ProductComparisonService({ productRepository, catalogRepository, storePrice });
   return {
     store,
     persistence,
     storage,
     tokenService,
-    productService: new ProductService({ productRepository, catalogRepository }),
-    productDetailService: new ProductDetailService({ productRepository, catalogRepository, reviewRepository }),
-    productComparisonService: new ProductComparisonService({ productRepository, catalogRepository }),
-    catalogRefreshService: new CatalogRefreshService({ productRepository, reviewRepository, favoriteRepository, persistence, scrapedPath, logger }),
+    productService,
+    productDetailService,
+    productComparisonService,
+    catalogFacade: new CatalogFacade(productService, productComparisonService, productDetailService),
+    catalogRefreshService: new CatalogRefreshService({ productRepository, reviewRepository, favoriteRepository, persistence, scrapedPath, source, logger }),
     productAdminService: new ProductAdminService({ productRepository, reviewRepository, favoriteRepository, catalogRepository }),
     reviewService: new ReviewService({ reviewRepository, productRepository }),
     favoriteService: new FavoriteService({ favoriteRepository, productRepository }),

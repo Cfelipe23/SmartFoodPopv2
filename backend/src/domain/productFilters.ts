@@ -8,7 +8,7 @@ interface FilterCatalog {
   getStores(): readonly Store[];
 }
 
-interface ProductFilter {
+export interface ProductFilterStrategy {
   apply(products: Product[], query: ProductFilterQuery, catalog: FilterCatalog): Product[];
   describeEmpty?(query: ProductFilterQuery): string;
 }
@@ -19,7 +19,7 @@ function catalogItemId(item: { id: number } | null): number {
   return Number(item.id);
 }
 
-export const searchFilter: ProductFilter = {
+export const searchFilter: ProductFilterStrategy = {
   apply(products, query) {
     const search = normalizeText(readTextParam(query.search));
     if (!search) return products;
@@ -27,7 +27,7 @@ export const searchFilter: ProductFilter = {
   },
   describeEmpty(query) { return query.search ? `No hay productos que coincidan con “${query.search}”.` : ''; }
 };
-export const categoryFilter: ProductFilter = {
+export const categoryFilter: ProductFilterStrategy = {
   apply(products, query, catalog) {
     if (!query.category) return products;
     const category = readCatalogItem(catalog.getCategories(), readTextParam(query.category), 'slug');
@@ -35,7 +35,7 @@ export const categoryFilter: ProductFilter = {
   },
   describeEmpty(query) { return query.category ? `No hay productos en la categoría “${query.category}”.` : ''; }
 };
-export const storeFilter: ProductFilter = {
+export const storeFilter: ProductFilterStrategy = {
   apply(products, query, catalog) {
     if (!query.store) return products;
     const store = readCatalogItem(catalog.getStores(), readTextParam(query.store), 'code');
@@ -43,7 +43,7 @@ export const storeFilter: ProductFilter = {
   },
   describeEmpty(query) { return query.store ? `No hay productos disponibles en la tienda “${query.store}”.` : ''; }
 };
-export const offerFilter: ProductFilter = {
+export const offerFilter: ProductFilterStrategy = {
   apply(products, query) {
     if (query.is_offer !== 'true') return products;
     return products.filter(product => (product.prices || []).some(price => price.is_offer));
@@ -54,11 +54,11 @@ export function applyFilters(
   products: readonly Product[],
   query: ProductFilterQuery = {},
   catalog: FilterCatalog,
-  filters: readonly ProductFilter[] = []
+  filters: readonly ProductFilterStrategy[] = []
 ): Product[] {
   return filters.reduce((current, filter) => filter.apply(current, query, catalog), [...products]);
 }
-export function buildEmptyMessage(query: ProductFilterQuery = {}, filters: readonly ProductFilter[] = []): string {
+export function buildEmptyMessage(query: ProductFilterQuery = {}, filters: readonly ProductFilterStrategy[] = []): string {
   for (const filter of filters) { const message = filter.describeEmpty?.(query); if (message) return message; }
   return 'No se encontraron productos con los criterios seleccionados.';
 }

@@ -7,9 +7,12 @@ const UserRepository = require('../dist/repositories/UserRepository');
 const ReviewRepository = require('../dist/repositories/ReviewRepository');
 const FavoriteRepository = require('../dist/repositories/FavoriteRepository');
 const ProductService = require('../dist/services/ProductService');
+const { basePrice, withStore, withUnitPrice } = require('../dist/services/pricePresenter');
+const { CatalogEquivalenceIndex } = require('../dist/services/EquivalenceIndexProxy');
 const { ProductDetailService, summarizeReviews } = require('../dist/services/ProductDetailService');
 const ProductComparisonService = require('../dist/services/ProductComparisonService');
 const ProductAdminService = require('../dist/services/ProductAdminService');
+const { CatalogFacade } = require('../dist/services/CatalogFacade');
 const { searchFilter, defaultProductFilters, applyFilters } = require('../dist/domain/productFilters');
 const { AuthService, AuthError } = require('../dist/services/AuthService');
 const TokenService = require('../dist/services/TokenService');
@@ -18,8 +21,30 @@ const { BcryptPasswordHasher } = require('../dist/services/PasswordHasher');
 function setup() {
   const store = createInMemoryStore();
   const productRepository = new ProductRepository(store), catalogRepository = new CatalogRepository(store), userRepository = new UserRepository(store), reviewRepository = new ReviewRepository(store), favoriteRepository = new FavoriteRepository(store);
-  return { store, productRepository, catalogRepository, userRepository, reviewRepository, favoriteRepository };
+  const storePrice = withStore(basePrice, catalogRepository);
+  return { store, productRepository, catalogRepository, userRepository, reviewRepository, favoriteRepository,
+    storePrice, detailPrice: withUnitPrice(storePrice), unitPrice: withUnitPrice(basePrice),
+    equivalences: new CatalogEquivalenceIndex(productRepository) };
 }
+
+test('catálogo: la fachada delega cada consulta y conserva el resultado y el error originales', t => {
+  const data = {};
+  const query = { search: 'arroz' };
+  const products = { list: t.mock.fn(() => data), listOffers: t.mock.fn(() => data) };
+  const comparisons = { compare: t.mock.fn(() => data) };
+  const details = { getDetail: t.mock.fn(() => data) };
+  const facade = new CatalogFacade(products, comparisons, details);
+  for (const [method, service, args] of [
+    ['list', products, [query]], ['listOffers', products, []],
+    ['compare', comparisons, [query]], ['getDetail', details, [11]]
+  ]) {
+    assert.equal(facade[method](...args), data);
+    assert.deepEqual(service[method].mock.calls.map(call => call.arguments), [args]);
+  }
+  const error = Object.assign(new Error('Tienda no válida'), { status: 400 });
+  comparisons.compare.mock.mockImplementation(() => { throw error; });
+  assert.throws(() => facade.compare(query), received => received === error);
+});
 
 test('RF03: product listing is read-only and returns catalog metadata', () => {
   const d = setup(); const service = new ProductService(d); const result = service.list();
@@ -38,6 +63,27 @@ test('RF04: a new filter can be injected without changing ProductService', () =>
   const d = setup(); const maxPriceFilter = { apply: products => products.filter(p => p.prices.some(price => price.price < 4000)), describeEmpty: () => 'Sin productos económicos' };
   const service = new ProductService({ ...d, filters: [maxPriceFilter] });
   assert.ok(service.list().products.every(p => p.prices.some(price => price.price < 4000)));
+});
+
+test('RF09: las estrategias reciben el resultado anterior y el primer mensaje aplicable tiene prioridad', () => {
+  const deps = setup();
+  const first = deps.store.products[0];
+  const calls = [];
+  const service = new ProductService({ ...deps, filters: [
+    { apply(products) { calls.push('primero'); return products.slice(0, 1); } },
+    {
+      apply(products) { calls.push('segundo'); assert.deepEqual(products, [first]); return []; },
+      describeEmpty: () => 'Sin coincidencias del segundo filtro'
+    },
+    {
+      apply(products) { calls.push('tercero'); assert.deepEqual(products, []); return products; },
+      describeEmpty: () => 'Sin coincidencias del tercer filtro'
+    }
+  ] });
+  const result = service.list();
+  assert.deepEqual(calls, ['primero', 'segundo', 'tercero']);
+  assert.equal(result.total, 0);
+  assert.equal(result.message, 'Sin coincidencias del segundo filtro');
 });
 test('RF09: category and store filters compose', () => {
   const d = setup(); const service = new ProductService(d); const result = service.list({ category: 'granos-y-basicos', store: 'd1' });
@@ -105,4 +151,61 @@ test('admin: product writes are separated from the read service and clean relate
   d.reviewRepository.add({ product_id: created.id, rating: 5, comment: 'test' });
   d.favoriteRepository.toggle(1, created.id);
   assert.equal(admin.delete(created.id), true); assert.equal(d.reviewRepository.findByProductId(created.id).length, 0);
+});
+
+test('HU11: el alta mínima usa los valores predeterminados del producto', () => {
+  const admin = new ProductAdminService(setup());
+  const product = admin.create({ name: ' Arroz ', category_id: '1', prices: [{ store_id: 1, price: 1000 }] });
+  assert.deepEqual(product, {
+    id: product.id, name: 'Arroz', description: '', category_id: 1, unit: '1 Unidad',
+    image_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
+    prices: [{ store_id: 1, price: 1000, previous_price: 1000, is_offer: false, offer_description: '', source_url: '' }]
+  });
+});
+
+test('HU11: el alta completa y la edición parcial conservan la oferta y el enlace', () => {
+  const admin = new ProductAdminService(setup());
+  const product = {
+    name: 'Arroz', description: 'Grano largo', category_id: 1, unit: '500 g', image_url: 'https://example.test/arroz.jpg',
+    prices: [{ store_id: 1, price: 900, previous_price: 1000, is_offer: true, offer_description: 'Descuento', source_url: 'https://www.d1.com.co/arroz/p' }]
+  };
+  const created = admin.create(product);
+  assert.deepEqual(created, { id: created.id, ...product });
+  assert.deepEqual(admin.update(created.id, { description: '' }), { ...created, description: '' });
+});
+
+test('HU11: al editar desde un producto anterior se conservan los nulos y se aíslan sus precios', () => {
+  const original = {
+    id: 27, name: 'Arroz', description: null, category_id: null, unit: null, image_url: null,
+    prices: [{ store_id: 1, price: 900, previous_price: null, is_offer: false, offer_description: '' }]
+  };
+  const deps = setup();
+  deps.productRepository.replaceAll([original]);
+  const edited = new ProductAdminService(deps).update(original.id, { name: 'Nuevo' });
+  assert.deepEqual(edited, { ...original, name: 'Nuevo' });
+  edited.prices[0].price = 800;
+  assert.equal(original.prices[0].price, 900);
+});
+
+test('HU11: una validación fallida conserva el producto y la versión del catálogo', () => {
+  const deps = setup();
+  const admin = new ProductAdminService(deps);
+  const original = admin.create({ name: 'Arroz', category_id: 1, prices: [{ store_id: 1, price: 1000 }] });
+  const version = deps.productRepository.version;
+  for (const [changes, message] of [
+    [{ name: ' ' }, /obligatorio/],
+    [{ name: 'a'.repeat(256) }, /255/],
+    [{ description: 'a'.repeat(2001) }, /2000/],
+    [{ category_id: 99 }, /categoría/],
+    [{ prices: [] }, /al menos una tienda/],
+    [{ prices: [{ store_id: 1, price: 0 }] }, /mayor que cero/],
+    [{ prices: [{ store_id: 99, price: 10 }] }, /tienda indicada/],
+    [{ prices: [{ store_id: 1, price: 10 }, { store_id: 1, price: 11 }] }, /misma tienda/],
+    [{ prices: [{ store_id: 1, price: 10, previous_price: 10, is_offer: true }] }, /precio anterior/]
+  ]) {
+    assert.throws(() => admin.update(original.id, changes), { status: 400, message });
+    assert.throws(() => admin.create({ ...original, ...changes }), { status: 400, message });
+  }
+  assert.equal(deps.productRepository.version, version);
+  assert.deepEqual(deps.productRepository.findById(original.id), original);
 });

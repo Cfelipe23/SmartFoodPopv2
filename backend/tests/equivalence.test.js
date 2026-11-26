@@ -8,6 +8,8 @@ const { createInMemoryStore } = require('../dist/data/inMemoryStore');
 const ProductRepository = require('../dist/repositories/ProductRepository');
 const CatalogRepository = require('../dist/repositories/CatalogRepository');
 const ProductService = require('../dist/services/ProductService');
+const { basePrice, withUnitPrice } = require('../dist/services/pricePresenter');
+const { CatalogEquivalenceIndex } = require('../dist/services/EquivalenceIndexProxy');
 
 const price = (store_id, value) => ({ store_id, price: value, previous_price: value, is_offer: false });
 const product = (id, name, store_id, value) => ({ id, name, description: '', category_id: 1, unit: '', image_url: '', prices: [price(store_id, value)] });
@@ -39,7 +41,9 @@ test('RF07: el listado incluye precio por kg/L y el equivalente, solo lo compara
     product(3, 'Arroz Diana 1 Kg', 2, 3600),
     { ...product(4, 'Fríjol Rojo 500 G', 1, 5000), prices: [price(1, 5000), price(2, 5200)] }
   ];
-  const service = new ProductService({ productRepository: new ProductRepository(store), catalogRepository: new CatalogRepository(store) });
+  const productRepository = new ProductRepository(store);
+  const service = new ProductService({ productRepository, catalogRepository: new CatalogRepository(store),
+    equivalences: new CatalogEquivalenceIndex(productRepository), unitPrice: withUnitPrice(basePrice) });
   const { products } = service.list();
   assert.deepEqual(products.map(p => p.id), [4, 2, 3], 'idénticos primero, luego con equivalente; lo que no se compara no se lista');
   assert.equal(products.find(p => p.id === 1), undefined);
@@ -65,6 +69,25 @@ test('GET /api/health indica si el almacenamiento es memoria o PostgreSQL', asyn
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/health`);
   assert.deepEqual(await response.json(), { status: 'ok', storage: 'memory' });
   await new Promise(resolve => server.close(resolve));
+});
+
+test('RF07: cada consulta conserva sus campos de precio y su orden sin alterar el producto', () => {
+  const store = createInMemoryStore();
+  const rice = product(1, 'Arroz Diana 500 G', 1, 2300);
+  rice.prices.push(price(2, 2000));
+  store.products = [rice];
+  const original = structuredClone(rice);
+  const { catalogFacade } = buildContainer({ store, loadCatalog: false });
+  const catalog = catalogFacade.list().products[0].prices;
+  const compared = catalogFacade.compare().products[0].prices;
+  const detail = catalogFacade.getDetail(1).product.prices;
+  assert.deepEqual(catalog.map(p => p.store_id), [1, 2]);
+  assert.deepEqual(catalog.map(p => p.unit_price.value), [4600, 4000]);
+  assert.ok(catalog.every(p => !('store_name' in p)));
+  assert.deepEqual(compared.map(p => p.store_code), ['olimpica', 'd1']);
+  assert.ok(compared.every(p => !('unit_price' in p)));
+  assert.deepEqual(detail, compared.map((p, i) => ({ ...p, unit_price: catalog[1 - i].unit_price })));
+  assert.deepEqual(rice, original);
 });
 
 test('los errores de conexión a PostgreSQL explican qué hacer', () => {

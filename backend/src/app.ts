@@ -17,8 +17,7 @@ import { createAuthMiddleware } from './middleware/authMiddleware';
 import { apiErrorHandler } from './middleware/errorMiddleware';
 
 type AppServices = Pick<Container,
-  'tokenService' | 'authService' | 'productService' | 'productDetailService' |
-  'productComparisonService' | 'reviewService' | 'favoriteService' | 'productAdminService'
+  'tokenService' | 'authService' | 'catalogFacade' | 'reviewService' | 'favoriteService' | 'productAdminService'
 > & Partial<Pick<Container, 'storage'>>;
 
 export function createApp(services: AppServices): Express {
@@ -38,7 +37,7 @@ export function createApp(services: AppServices): Express {
     endpoints: ['/api/auth/register', '/api/auth/login', '/api/products', '/api/products/offers', '/api/products/compare', '/api/reviews', '/api/favorites', '/api/admin/products']
   }));
   app.use('/api/auth', authRoutes(authController(services.authService), authMiddleware));
-  app.use('/api/products', productRoutes(productController(services)));
+  app.use('/api/products', productRoutes(productController(services.catalogFacade)));
   app.use('/api/reviews', reviewRoutes(reviewController(services.reviewService), authMiddleware));
   app.use('/api/favorites', favoriteRoutes(favoriteController(services.favoriteService), authMiddleware));
   app.use('/api/admin', adminRoutes(adminController(services.productAdminService), authMiddleware));

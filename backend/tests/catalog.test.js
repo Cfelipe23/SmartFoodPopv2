@@ -7,6 +7,7 @@ const { ProductDetailService, computeUnitPrice } = require('../dist/services/Pro
 const { createInMemoryStore } = require('../dist/data/inMemoryStore');
 const ProductRepository = require('../dist/repositories/ProductRepository');
 const CatalogRepository = require('../dist/repositories/CatalogRepository');
+const { basePrice, withStore, withUnitPrice } = require('../dist/services/pricePresenter');
 const ReviewRepository = require('../dist/repositories/ReviewRepository');
 
 const raw = (name, store, price, extra = {}) => ({ name, store, price, original_price: price, is_offer: false, image_url: '', sku_id: `${store}-${name}`, ...extra });
@@ -85,7 +86,9 @@ test('RF07: product detail exposes unit prices and similar products from other s
     raw('Arroz Diana 1 Kg', 'olimpica', 3600),
     raw('Detergente Ariel 2 Kg', 'd1', 20000)
   ]).map((card, index) => ({ ...card, id: index + 1 }));
-  const service = new ProductDetailService({ productRepository: new ProductRepository(store), catalogRepository: new CatalogRepository(store), reviewRepository: new ReviewRepository(store) });
+  const catalogRepository = new CatalogRepository(store);
+  const service = new ProductDetailService({ productRepository: new ProductRepository(store), catalogRepository,
+    reviewRepository: new ReviewRepository(store), detailPrice: withUnitPrice(withStore(basePrice, catalogRepository)) });
   const target = store.products.find(product => product.name === 'Arroz Diana 500 G');
   const detail = service.getDetail(target.id);
   assert.deepEqual(detail.product.prices[0].unit_price, { value: 4000, per: 'kg' });

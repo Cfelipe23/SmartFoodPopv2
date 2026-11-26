@@ -10,8 +10,50 @@ const { buildCatalogCards } = require('../dist/domain/catalogBuilder');
 const { PostgresPersistence } = require('../dist/data/PostgresPersistence');
 const { bootstrapContainer, buildContainer } = require('../dist/container');
 const { createInMemoryStore } = require('../dist/data/inMemoryStore');
+const { CatalogEquivalenceIndex } = require('../dist/services/EquivalenceIndexProxy');
+const { ScrapedCatalogAdapter } = require('../dist/data/ScrapedCatalogAdapter');
 
 const quietLogger = { log() {}, warn() {} };
+
+test('RF03: el adaptador produce las mismas tarjetas que el dominio con el JSON del scraper', () => {
+  const file = path.join(__dirname, 'fixtures/scraped_sample.json');
+  assert.deepEqual(new ScrapedCatalogAdapter(file).readCards(), buildCatalogCards(require(file)));
+});
+
+test('RF03: el adaptador admite registros antiguos junto a registros inválidos', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sfp-adapter-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'catalog.json');
+  fs.writeFileSync(file, JSON.stringify([null, { name: 'Arroz Diana 500 G', store: 'D1', price: '2000', image_url: null }]));
+  const cards = new ScrapedCatalogAdapter(file).readCards();
+  assert.equal(cards.length, 1);
+  assert.deepEqual(cards[0].prices, [{
+    store_id: 1, price: 2000, previous_price: 2000, is_offer: false, offer_description: '', source_url: ''
+  }]);
+});
+
+for (const [label, content, error] of [
+  ['archivo inexistente', undefined, { code: 'ENOENT' }],
+  ['JSON mal formado', '[', SyntaxError],
+  ['objeto en lugar de lista', '{}', /debe ser una lista/],
+  ['lista vacía', '[]', /no contiene productos válidos/],
+  ['registros inválidos', '[null, {"name":"Arroz","store":"d1","price":0}]', /no contiene productos válidos/]
+]) {
+  test(`RF03: ${label} conserva el catálogo durante la carga y la actualización`, t => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sfp-adapter-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const scrapedPath = path.join(dir, 'catalog.json');
+    if (content !== undefined) fs.writeFileSync(scrapedPath, content);
+    assert.throws(() => new ScrapedCatalogAdapter(scrapedPath).readCards(), error);
+    const store = createInMemoryStore();
+    store.products = buildCatalogCards([{ name: 'Arroz 500 G', store: 'd1', price: 2000 }]);
+    const expected = structuredClone(store.products);
+    const container = buildContainer({ store, scrapedPath, logger: quietLogger });
+    assert.deepEqual(store.products, expected);
+    assert.equal(container.catalogRefreshService.refresh(), null);
+    assert.deepEqual(store.products, expected);
+  });
+}
 const D1 = 'https://www.d1.com.co';
 const OLI = 'https://www.olimpica.com';
 const price = (store_id, value, url) => ({ store_id, price: value, previous_price: value, is_offer: false, offer_description: '', source_url: url });
@@ -45,6 +87,9 @@ test('actualización de precios: conserva ids, agrega nuevos y retira los que la
   assert.equal(arroz.prices[0].source_url, `${D1}/arroz/p`);
   assert.equal(result.products.find(p => p.name === 'Azúcar 1 Kg').id, 13, 'los nuevos toman ids libres');
   assert.deepEqual(result.removedIds, [9]);
+  assert.deepEqual(result.products.map(p => p.id), [7, 12, 13]);
+  assert.deepEqual(result.changedProducts.map(p => p.id), [7, 13]);
+  assert.equal(result.remap.size, 0);
   assert.ok(result.products.some(p => p.id === 12), 'lo creado por el administrador no se toca');
   assert.deepEqual(result.stats, { total: 3, updated: 1, created: 1, removed: 1, unchanged: 1 });
 });
@@ -79,11 +124,35 @@ test('actualización de precios: si dos fichas pasan a ser el mismo producto, re
   const container = buildContainer({ store, loadCatalog: false, scrapedPath, logger: quietLogger });
   const result = container.catalogRefreshService.refresh();
   assert.deepEqual(result.removedIds, [2]);
+  assert.deepEqual([...result.remap], [[2, 1]]);
   assert.equal(store.products.length, 1);
   assert.deepEqual(store.products[0].prices.map(p => p.price), [3900, 4100]);
   assert.equal(store.reviews[0].product_id, 1, 'la reseña pasa al producto que quedó');
   assert.deepEqual(store.favorites.map(f => f.product_id), [1], 'sin favoritos duplicados');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('RF07: catálogo y ofertas comparten un cálculo por versión y muestran el precio actualizado del equivalente', t => {
+  const builds = t.mock.method(CatalogEquivalenceIndex.prototype, 'getIndex');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sfp-index-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const scrapedPath = path.join(dir, 'catalog.json');
+  const rice = { ...raw('d1', 'Arroz Diana 500 G', 2000, 'arroz-500'), original_price: 2500, is_offer: true };
+  const equivalent = raw('olimpica', 'Arroz Diana 1 Kg', 3600, 'arroz-kilo');
+  fs.writeFileSync(scrapedPath, JSON.stringify([rice, equivalent]));
+  const { catalogFacade, catalogRefreshService } = buildContainer({ scrapedPath, logger: quietLogger });
+  assert.equal(builds.mock.callCount(), 0);
+  const offeredRice = catalogFacade.list().products.find(p => p.prices.some(price => price.is_offer));
+  assert.equal(offeredRice.equivalent.prices[0].price, 3600);
+  assert.equal(catalogFacade.listOffers().offers[0].equivalent.prices[0].price, 3600);
+  assert.equal(builds.mock.callCount(), 1);
+
+  fs.writeFileSync(scrapedPath, JSON.stringify([rice, { ...equivalent, price: 3300 }]));
+  assert.equal(catalogRefreshService.refresh().stats.updated, 1);
+  assert.equal(builds.mock.callCount(), 1);
+  assert.equal(catalogFacade.listOffers().offers[0].equivalent.prices[0].price, 3300);
+  assert.equal(catalogFacade.list().products.find(p => p.id === offeredRice.id).equivalent.prices[0].price, 3300);
+  assert.equal(builds.mock.callCount(), 2);
 });
 
 test('PostgreSQL: al reiniciar se aplican los precios nuevos del scraper sin perder reseñas ni favoritos', async () => {

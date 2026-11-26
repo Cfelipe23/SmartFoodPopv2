@@ -26,6 +26,19 @@ test.after(async () => { await api.close(); });
 
 const credentials = { name: 'Ana Pérez', email: 'ana.api@example.com', password: 'Secreta123' };
 
+test('API: la raíz describe el servicio y health identifica el almacenamiento en memoria', async () => {
+  const info = await api.call('GET', '/');
+  assert.equal(info.status, 200);
+  assert.deepEqual(info.data, {
+    app: 'SmartFoodPop API', city: 'Popayán, Colombia', version: '1.0.0', status: 'Online',
+    endpoints: ['/api/auth/register', '/api/auth/login', '/api/products', '/api/products/offers',
+      '/api/products/compare', '/api/reviews', '/api/favorites', '/api/admin/products']
+  });
+  const health = await api.call('GET', '/health');
+  assert.equal(health.status, 200);
+  assert.deepEqual(health.data, { status: 'ok', storage: 'memory' });
+});
+
 test('HU01: registro valido, correo duplicado y campos vacios (sin tumbar el servidor)', async () => {
   const ok = await api.call('POST', '/auth/register', { body: credentials });
   assert.equal(ok.status, 201);
