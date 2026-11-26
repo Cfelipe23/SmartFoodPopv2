@@ -32,7 +32,7 @@
 
 ### 1.2 Stack permitido (restricción 7.1 del alcance)
 
-React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · GitHub. El equipo aprobó TypeScript para el backend y el frontend el 26-nov-2026. La migración empieza por el backend y el frontend sigue en JavaScript hasta su etapa. Esta decisión actualiza el stack de trabajo respecto a la sección 7.1 del alcance original. Cualquier otra dependencia o tecnología nueva requiere justificarla y que el equipo la apruebe.
+React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · GitHub. El equipo aprobó TypeScript para el backend y el frontend el 26-nov-2026. La migración empezó por el backend y continúa por grupos en el frontend. Esta decisión actualiza el stack de trabajo respecto a la sección 7.1 del alcance original. Cualquier otra dependencia o tecnología nueva requiere justificarla y que el equipo la apruebe.
 
 ### 1.3 Principios
 
@@ -42,7 +42,7 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 - **KISS / YAGNI.** Elige la solución más simple que cumpla el criterio de aceptación. Nada de abstracciones «por si acaso».
 - **Bajo acoplamiento.** Si añadir una función obliga a modificar código no relacionado que ya funcionaba, repórtalo antes de seguir.
 - **Errores.** Los servicios lanzan `httpError(status, mensaje)` (`domain/httpError.ts`) o `AuthError`. La API siempre responde `{ "error": "mensaje" }` con el código adecuado (400, 401, 403, 404, 409).
-- **Frontend.** Los componentes no llaman a `fetch`: usan los hooks (`hooks/`), y estos usan `api/*` sobre el cliente único `api/httpClient.js`. La interfaz muestra lo que **el servidor confirmó**: nada de datos simulados ni actualizaciones optimistas que no se reviertan.
+- **Frontend.** Los componentes usan los hooks (`hooks/`) y las llamadas a la API pasan por `api/httpClient.ts`. La interfaz muestra lo que **el servidor confirmó**: nada de datos simulados ni actualizaciones optimistas que no se reviertan.
 - **Interfaz accesible.** Botones con `aria-label` cuando solo tienen icono, diálogos con `role="dialog"`/`alertdialog` y mensajes de estado visibles (carga, error, vacío).
 - **Cada cambio con su prueba.** Un comportamiento nuevo lleva prueba en la suite que corresponda (sección 8). Prioriza los casos límite sobre las pruebas redundantes.
 
@@ -53,9 +53,9 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 | Un endpoint nuevo | `routes/<recurso>.ts` (URL, verbo y middlewares) → `controllers/<recurso>Controller.ts` (HTTP ↔ servicio) → método en un servicio existente o uno nuevo registrado en `container.ts` → montarlo en `app.ts` |
 | Una regla de negocio o validación | En el servicio del caso de uso (`services/`) |
 | Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.ts`, `productClassifier.ts`, `catalogBuilder.ts`, `productEquivalence.ts` |
-| Un filtro de búsqueda | `domain/productFilters.ts` (servidor) y `frontend/src/utils/filterProducts.js` (cliente). Mantén ambos coherentes. |
+| Un filtro de búsqueda | `domain/productFilters.ts` (servidor) y `frontend/src/utils/filterProducts.ts` (cliente). Mantén ambos coherentes. |
 | Guardar algo nuevo en la base | `data/schema.sql` (con `IF NOT EXISTS`), el contrato en `data/persistence.ts`, un método en `data/PostgresPersistence.ts` y su equivalente en `NoopPersistence`; el repositorio llama a la persistencia |
-| Una llamada nueva desde el frontend | `frontend/src/api/<recurso>Api.js` → hook en `hooks/` → componente |
+| Una llamada nueva desde el frontend | `frontend/src/api/<recurso>Api.ts` → hook en `hooks/` → componente |
 | Un componente visual | `frontend/src/components/<área>/`; los estilos compartidos están en `index.css` (clases `nav-btn`, `modal-content`, `product-card`, …) |
 | Una tienda o fuente nueva del scraper | `scraper/config.py` + `scraper/sources/` (VTEX en `vtex.py`); debe producir el mismo DTO (sección 4.4) |
 
@@ -81,6 +81,7 @@ Cada uno corrige un defecto real que ya ocurrió (ver la sección 8.4).
 ```bash
 npm test                                       # backend + frontend
 npm --prefix backend run typecheck             # verificación de tipos del backend
+npm --prefix frontend run typecheck            # verificación de tipos del frontend
 npm run lint && npm run build                  # frontend
 cd scraper && python -m unittest discover -s tests   # si tocaste el scraper
 ```
@@ -101,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | React 19 + JavaScript (Vite), `lucide-react` para los iconos |
+| Frontend | React 19 + Vite, con API, sesión y utilidades en TypeScript estricto. Los componentes, hooks y contextos siguen en JavaScript y JSX. Los iconos usan `lucide-react`. |
 | Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Todo el código de aplicación en `backend/src/` usa TypeScript estricto y se compila a CommonJS. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
@@ -235,8 +236,11 @@ D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímp
 | Composición | `App.jsx`: pestañas (catálogo, ofertas, guardados), filtros, paginación de 24 en 24, modales y avisos. |
 | Componentes | `layout/Header.jsx` (buscador, pestañas, menú de perfil con «Mis productos guardados»), `layout/HeroBanner.jsx`, `products/ProductCard.jsx`, `products/ProductDetailModal.jsx` (detalle, comparativa, guardar, reseñas), `auth/AuthModal.jsx`, `admin/AdminPanel.jsx`, `common/Toast.jsx` |
 | Estado | `context/AuthContext.jsx` y `authContext.js`; hooks `useAuth`, `useProducts` (catálogo y acciones del administrador), `useProductDetail`, `useFavorites` |
-| API | `api/httpClient.js` (añade el token, normaliza los errores y cierra la sesión si el token caduca) y `authApi`, `productApi`, `reviewApi`, `favoriteApi`, `adminApi`, `healthApi` |
-| Utilidades | `utils/filterProducts.js` (búsqueda sin tildes, filtros, orden de ofertas), `comparison.js` (comparativa por tarjeta), `format.js` (pesos colombianos y descuentos), `productPayload.js` (validación del formulario del administrador) |
+| API | `api/httpClient.ts` añade el token, normaliza los errores y cierra la sesión si el token caduca. Los módulos `authApi`, `productApi`, `reviewApi`, `favoriteApi`, `adminApi` y `healthApi` validan las respuestas con `responseGuards.ts`. |
+| Sesión | `storage/sessionStorage.ts` conserva las claves `smartfood_token` y `smartfood_user` en `localStorage`. |
+| Utilidades | `utils/filterProducts.ts` (búsqueda, filtros y orden de ofertas), `comparison.ts` (comparativa por tarjeta), `format.ts` (pesos colombianos y descuentos), `productPayload.ts` (validación del formulario del administrador) |
+
+`types/api.ts` reexporta solo tipos de los contratos HTTP y entidades que usa el backend. `types/presentation.ts` define las formas que necesitan las utilidades y el formulario. Ante un cambio de API, actualiza el contrato en el backend y su validación en `responseGuards.ts`, y comprueba ambos con el cliente y una respuesta real. Las referencias de tipos se eliminan del bundle y el chequeo necesita esos archivos del repositorio.
 
 ### 4.6 Seguridad
 
@@ -349,10 +353,10 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 | RF01 / HU01 Registro | 1 | `AuthModal` → `AuthService.register`: campos obligatorios, correo válido, contraseña de 6 caracteres o más, correo único, bcrypt, mensaje y sesión iniciada | `api.test.js` HU01, `solid.test.js`, `postgres.test.js` |
 | RF02 / HU02 Inicio de sesión | 1 | `AuthService.login` + JWT; la sesión caducada se cierra sola | `api.test.js` HU02 |
 | RF03 / HU03 Catálogo | 1 | Scraper → `scrapedProductsLoader`/`catalogRefresh` → `GET /products` → `App.jsx` | `api.test.js` HU03, `catalog.test.js`, `catalogRefresh.test.js`, `scraper/tests/*` |
-| RF04 / HU04 Búsqueda | 2 | `Header` + `utils/filterProducts.js` (sin recargar, ignora tildes); API `?search=` | `api.test.js`, `utils.test.js` RF04 |
+| RF04 / HU04 Búsqueda | 2 | `Header` + `utils/filterProducts.ts` (sin recargar, ignora tildes); API `?search=` | `api.test.js`, `utils.test.js` RF04 |
 | RF05 / HU05 Detalle | 2 | `ProductDetailModal` / `ProductDetailService` | `api.test.js` HU05, `solid.test.js` RF05 |
 | RF06 / HU06 Reseñas | 2–3 | `ReviewService`: lectura pública y publicación solo con sesión | `api.test.js` HU06, `postgres.test.js` |
-| RF07 / HU07 Comparación | 1 (matriz) | `catalogBuilder`, `productEquivalence`, `utils/comparison.js` | `catalog.test.js` HU07, `equivalence*.test.js`, `comparison.test.js` |
+| RF07 / HU07 Comparación | 1 (matriz) | `catalogBuilder`, `productEquivalence`, `utils/comparison.ts` | `catalog.test.js` HU07, `equivalence*.test.js`, `comparison.test.js` |
 | RF08 / HU08 Ofertas | 3 | Pestaña Ofertas y `GET /products/offers` | `api.test.js`, `catalog.test.js` HU08, `utils.test.js` RF08 |
 | RF09 / HU09 Filtros | 2–3 | Categoría y tienda, combinables; mensaje si no hay coincidencias | `api.test.js`, `solid.test.js` RF09, `utils.test.js` RF09 |
 | RF10 / HU10 Guardados | 3 | Corazón en la tarjeta y botón en el detalle; lista desde la pestaña y el menú de perfil | `api.test.js` HU10, `utils.test.js` RF10, `postgres.test.js` |
@@ -370,9 +374,9 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 | Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` y `backend/tests/httpBoundary.test.js` |
 | Persistencia | `node:test` + `pg-mem` y pool simulado. Persistencia compilada verificada también en PostgreSQL 18.6 aislado. | `backend/tests/postgres.test.js`, `backend/tests/persistenceContracts.test.js` |
 | Autenticación | `node:test` con bcrypt y JWT | `backend/tests/authContracts.test.js` y los casos de autenticación de `api.test.js` |
-| Frontend (filtros, comparación, formato, validación del administrador) | `node:test` | `frontend/src/utils/*.test.js` |
+| Frontend (filtros, comparación, formato, formulario, HTTP y sesión) | `node:test` con el cargador de Vite | `frontend/src/utils/*.test.js` y `frontend/src/api/httpClient.test.js` |
 | Scraper (contrato, paginación, reintentos, categorías, búsquedas, URL) | `unittest` | `scraper/tests/` |
-| Estáticas | `tsc`, `oxlint`, `vite build` | `npm --prefix backend run typecheck`, `npm run lint`, `npm run build` |
+| Estáticas | `tsc`, `oxlint`, `vite build` | `npm --prefix backend run typecheck`, `npm --prefix frontend run typecheck`, `npm run lint`, `npm run build` |
 
 Las pruebas del backend ejecutan el código compilado en `dist/`. Las de persistencia usan `pg-mem`.
 
@@ -389,6 +393,8 @@ Migración de servicios (26-nov-2026) · Backend 62/62 · chequeo de tipos y bui
 Migración HTTP (26-nov-2026) · Backend 64/64 · chequeo de tipos y build correctos. La comparación antes y después con una muestra fija cubrió los 16 endpoints explícitos y 54 casos HTTP con la misma huella de respuestas.
 
 Con Node.js 20.19.0 en Windows se verificaron el build desde `dist/` vacío, `start.bat --no-scrape`, `npm start`, el cliente HTTP del frontend y la recarga del catálogo desde una copia de prueba.
+
+Migración de API, sesión y utilidades del frontend (26-nov-2026) · Frontend 15/15 · backend 64/64 · chequeo de tipos, lint y build correctos. La integración usó Express compilado en memoria y una muestra fija. Se verificaron catálogo, filtros, detalle, comparación, ofertas, sesión, reseñas, favoritos y administración.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 

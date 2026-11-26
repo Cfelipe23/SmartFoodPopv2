@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterProducts } from './filterProducts.js';
-import { formatCop, discountPercent, bestDiscount } from './format.js';
-import { buildProductPayload } from './productPayload.js';
+import { createTestModules } from '../../scripts/testModules.js';
+
+const vite = await createTestModules();
+test.after(() => vite.close());
+const { filterProducts } = await vite.ssrLoadModule('/src/utils/filterProducts.ts');
+const { formatCop, discountPercent, bestDiscount } = await vite.ssrLoadModule('/src/utils/format.ts');
+const { buildProductPayload } = await vite.ssrLoadModule('/src/utils/productPayload.ts');
 
 const stores = [{ id: 1, code: 'd1', name: 'Tiendas D1' }, { id: 2, code: 'olimpica', name: 'Olímpica' }];
 const categories = [{ id: 1, slug: 'granos-y-basicos' }, { id: 2, slug: 'lacteos' }];

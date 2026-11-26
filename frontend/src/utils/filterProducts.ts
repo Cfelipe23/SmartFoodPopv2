@@ -1,13 +1,16 @@
-import { bestDiscount } from './format.js';
-import { isComparable } from './comparison.js';
+import { bestDiscount } from './format';
+import { isComparable } from './comparison';
+import type { FilterableProduct, ProductFilters } from '../types/presentation';
 
-function normalizeText(value) {
+function normalizeText(value: unknown): string {
   return String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 // Filtrado del catálogo (RF04 búsqueda, RF08 ofertas, RF09 tienda/categoría, RF10 guardados).
 // La búsqueda ignora tildes y mayúsculas ("frijol" encuentra "Fríjol").
-export function filterProducts({ products, categories, stores, favorites, searchTerm, selectedCategory, selectedStore, activeTab, onlyComparable = false }) {
+export function filterProducts<T extends FilterableProduct>({
+  products, categories, stores, favorites, searchTerm, selectedCategory, selectedStore, activeTab, onlyComparable = false
+}: ProductFilters<T>): T[] {
   const query = normalizeText(searchTerm);
   const category = selectedCategory !== 'all' ? categories.find(c => c.slug === selectedCategory || c.id === Number(selectedCategory)) : null;
   const store = selectedStore !== 'all' ? stores.find(s => s.code === selectedStore || s.id === Number(selectedStore)) : null;
@@ -24,7 +27,7 @@ export function filterProducts({ products, categories, stores, favorites, search
 
   // En ofertas se muestran primero las de mayor descuento.
   if (activeTab === 'offers') {
-    return [...result].sort((a, b) => bestDiscount(b.prices) - bestDiscount(a.prices));
+    return [...result].sort((a, b) => bestDiscount(b.prices ?? undefined) - bestDiscount(a.prices ?? undefined));
   }
   return result;
 }

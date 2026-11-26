@@ -1,7 +1,12 @@
+import type { AdminPriceInput, CreateProductInput, Store } from '../types/api';
+import type { ProductForm } from '../types/presentation';
+
+type PayloadResult = { error: string; payload?: never } | { payload: CreateProductInput; error?: never };
+
 // Valida los campos obligatorios antes de guardar (HU11) y arma el cuerpo que espera la API.
-export function buildProductPayload(form, stores) {
+export function buildProductPayload(form: ProductForm, stores: readonly Pick<Store, 'id' | 'name'>[]): PayloadResult {
   if (!form.name.trim()) return { error: 'El nombre del producto es obligatorio' };
-  const prices = [];
+  const prices: AdminPriceInput[] = [];
   for (const store of stores) {
     const entry = form.prices[store.id];
     if (!entry || entry.price === '') continue;
