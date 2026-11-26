@@ -34,7 +34,7 @@ function logPrefix(prefix, color, data) {
 }
 
 // 1. Start Backend Server
-const backendProc = spawn(npmCmd, ['run', 'dev'], {
+const backendProc = spawn(`${npmCmd} run dev`, {
   cwd: path.join(rootDir, 'backend'),
   shell: true
 });
@@ -43,7 +43,7 @@ backendProc.stdout.on('data', (data) => logPrefix('BACKEND ', colors.magenta, da
 backendProc.stderr.on('data', (data) => logPrefix('BACKEND ', colors.red, data));
 
 // 2. Start Frontend Server
-const frontendProc = spawn(npmCmd, ['run', 'dev'], {
+const frontendProc = spawn(`${npmCmd} run dev`, {
   cwd: path.join(rootDir, 'frontend'),
   shell: true
 });

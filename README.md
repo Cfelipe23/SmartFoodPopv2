@@ -6,9 +6,15 @@ React (Vite) · Node.js + Express · PostgreSQL · scraper en Python.
 
 ## Inicio rápido
 
+Requisitos: **Node.js 20.19+**. Recomendados: **PostgreSQL** (para que los datos persistan) y **Python 3.10+** (para actualizar precios).
+
+**Windows:** clona el repositorio y ejecuta **`start.bat`** (o haz doble clic). La primera vez instala las dependencias y ofrece configurar PostgreSQL; luego arranca la app. Abre la dirección «Local» que muestra el frontend (normalmente http://localhost:5173).
+
+**Manual (cualquier sistema):**
+
 ```bash
 npm run install:all     # dependencias del backend y del frontend
-npm run db:setup        # crea la base PostgreSQL y backend/.env
+npm run db:setup        # crea la base PostgreSQL y backend/.env (opcional: sin ella funciona en memoria)
 npm run dev             # backend :5000 + frontend + scraper en segundo plano
 npm test                # pruebas
 ```
