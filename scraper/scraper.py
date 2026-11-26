@@ -14,6 +14,7 @@ from config import (
 from sources.base import StoreSource
 from sources.session_provider import RegionalizationError, fetch_regional_cookies
 from sources.vtex import VtexSource
+from query_builder import derive_queries
 from writer import write_json
 
 logger = logging.getLogger("smartfoodpop")
@@ -48,6 +49,16 @@ def _matches_target_category(raw_categories) -> bool:
     return False
 
 
+def _matches_top_level(raw_categories, allowed) -> bool:
+    """True si el primer segmento de alguna ruta de categoría está en `allowed` (sin tildes ni mayúsculas)."""
+    allowed_folded = {_fold(c) for c in allowed}
+    for path in raw_categories or []:
+        segments = [s for s in str(path).split("/") if s]
+        if segments and _fold(segments[0]) in allowed_folded:
+            return True
+    return False
+
+
 def build_sources() -> list[StoreSource]:
     """Crea una fuente por cada tienda declarada en config.VTEX_STORES."""
     sources: list[StoreSource] = []
@@ -76,14 +87,23 @@ def build_sources() -> list[StoreSource]:
             cookies=store_cookies,
         )
         source.use_full_catalog = store.get("use_full_catalog", False)
+        source.queries_from_store = store.get("queries_from_store")
+        source.max_derived_queries = store.get("max_derived_queries", 400)
+        source.target_top_categories = store.get("target_top_categories")
         sources.append(source)
     return sources
+
+
+MIN_PRODUCTS_TO_WRITE = 20
 
 
 def run(sources: Optional[list[StoreSource]] = None, output_file: str = OUTPUT_FILE) -> list[dict]:
     """Ejecuta el ciclo de extracción completo y persiste el resultado."""
     active_sources = sources if sources is not None else build_sources()
+    # Las fuentes que dependen de otra (queries_from_store) se procesan después de ella.
+    active_sources = sorted(active_sources, key=lambda src: 1 if getattr(src, "queries_from_store", None) else 0)
     all_products: list[dict] = []
+    products_by_store: dict[str, list[dict]] = {}
 
     for source in active_sources:
         logger.info("Extrayendo catálogo desde fuente %s", source)
@@ -101,14 +121,31 @@ def run(sources: Optional[list[StoreSource]] = None, output_file: str = OUTPUT_F
                 )
             else:
                 products = source.fetch()
+                reference = getattr(source, "queries_from_store", None)
+                if reference and products_by_store.get(reference):
+                    derived = derive_queries(products_by_store[reference], limit=getattr(source, "max_derived_queries", 400))
+                    logger.info("%s: %d búsquedas derivadas de %s", getattr(source, "store_name", "fuente"), len(derived), reference)
+                    known = {p.get("product_id") or p["name"] for p in products}
+                    extra = source.fetch_queries(derived, max_pages=1, pause_between_queries=0.8)
+                    products.extend(p for p in extra if (p.get("product_id") or p["name"]) not in known)
         except Exception:
             logger.exception("Ocurrió un error inesperado en la fuente %s; continuando...", source)
             continue
+        top_categories = getattr(source, "target_top_categories", None)
+        if top_categories:
+            before = len(products)
+            products = [p for p in products if _matches_top_level(p.get("_raw_categories"), top_categories)]
+            logger.info("%s: %d crudos -> %d en %s", getattr(source, "store_name", "fuente"), before, len(products), "/".join(top_categories))
         logger.info("[%s] %d productos válidos obtenidos", getattr(source, "store_name", "fuente"), len(products))
+        products_by_store[getattr(source, "store_name", "fuente")] = products
         all_products.extend(products)
 
-    if len(all_products) < 20:
-        logger.error("⚠️ Solo %d productos extraídos. Posible rotura de API o cookies inválidas.", len(all_products))
+    if len(all_products) < MIN_PRODUCTS_TO_WRITE:
+        logger.error(
+            "⚠️ Solo %d productos extraídos. Posible rotura de API o sin conexión: se conserva el JSON anterior.",
+            len(all_products),
+        )
+        return []
 
     for product in all_products:
         product.pop("_raw_categories", None)
@@ -134,4 +171,5 @@ def run(sources: Optional[list[StoreSource]] = None, output_file: str = OUTPUT_F
 
 if __name__ == "__main__":
     setup_logging()
-    run()
+    # Código de salida 1 si no se escribió nada (lo usa `npm run dev` para avisar).
+    sys.exit(0 if run() else 1)

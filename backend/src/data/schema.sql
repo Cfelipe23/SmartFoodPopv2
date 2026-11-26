@@ -1,5 +1,6 @@
 -- SmartFoodPop Database Schema (PostgreSQL)
 -- Asignatura: Construcción de Software - Popayán
+-- Cada sentencia termina en ";" y no contiene ";" dentro de literales (se ejecuta sentencia por sentencia).
 
 -- 1. Tabla de Usuarios
 CREATE TABLE IF NOT EXISTS users (
@@ -11,17 +12,17 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Tabla de Tiendas (D1, Olímpica, Éxito, etc. en Popayán)
+-- 2. Tabla de Tiendas (D1 y Olímpica en Popayán)
 CREATE TABLE IF NOT EXISTS stores (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     code VARCHAR(50) UNIQUE NOT NULL,
-    logo_url TEXT,
+    logo TEXT,
     city VARCHAR(100) DEFAULT 'Popayán',
     address TEXT
 );
 
--- 3. Tabla de Categorías (Granos y básicos, Lácteos, Aseo del hogar, etc.)
+-- 3. Tabla de Categorías (Granos y básicos, Lácteos, Aseo del hogar, Otros)
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -32,11 +33,11 @@ CREATE TABLE IF NOT EXISTS categories (
 -- 4. Tabla de Productos (Catálogo Centralizado)
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(150) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
     category_id INT REFERENCES categories(id) ON DELETE SET NULL,
     image_url TEXT,
-    unit VARCHAR(50) DEFAULT '1 Unidad / 1 kg',
+    unit VARCHAR(100) DEFAULT '1 Unidad',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -45,10 +46,11 @@ CREATE TABLE IF NOT EXISTS product_prices (
     id SERIAL PRIMARY KEY,
     product_id INT REFERENCES products(id) ON DELETE CASCADE,
     store_id INT REFERENCES stores(id) ON DELETE CASCADE,
-    price DECIMAL(10, 2) NOT NULL,
-    previous_price DECIMAL(10, 2),
+    price DECIMAL(12, 2) NOT NULL,
+    previous_price DECIMAL(12, 2),
     is_offer BOOLEAN DEFAULT FALSE,
     offer_description TEXT,
+    source_url TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_product_store UNIQUE (product_id, store_id)
 );
@@ -57,6 +59,7 @@ CREATE TABLE IF NOT EXISTS product_prices (
 CREATE TABLE IF NOT EXISTS reviews (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    user_name VARCHAR(100),
     product_id INT REFERENCES products(id) ON DELETE CASCADE,
     rating INT CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,

@@ -1,11 +1,13 @@
 const bcrypt = require('bcryptjs');
+
+// Las contraseñas solo se almacenan como hash bcrypt (nunca en texto plano).
 class BcryptPasswordHasher {
-  supports(user) { return Boolean(user?.password_hash); }
-  async hash(password) { return bcrypt.hash(password, 10); }
-  async verify(password, user) { return Boolean(user?.password_hash) && bcrypt.compare(password, user.password_hash); }
+  constructor({ rounds = 10 } = {}) { this.rounds = rounds; }
+  async hash(password) { return bcrypt.hash(password, this.rounds); }
+  hashSync(password) { return bcrypt.hashSync(password, this.rounds); }
+  async verify(password, user) {
+    return Boolean(user?.password_hash) && bcrypt.compare(password, user.password_hash);
+  }
 }
-class PlainPasswordVerifier {
-  supports(user) { return typeof user?.password === 'string'; }
-  async verify(password, user) { return this.supports(user) && user.password === password; }
-}
-module.exports = { BcryptPasswordHasher, PlainPasswordVerifier };
+
+module.exports = { BcryptPasswordHasher };

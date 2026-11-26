@@ -1,0 +1,116 @@
+const { productUrlKey } = require('./productUrl');
+
+// Si una tienda trae menos de esta fracción de los productos que ya había, se asume que el
+// scraping de esa tienda falló (bloqueo, caída de la API) y sus precios actuales se conservan.
+const MIN_STORE_RATIO = 0.5;
+
+const priceKey = price => {
+  const url = productUrlKey(price.source_url);
+  return url ? `${price.store_id}|${url}` : null;
+};
+
+const countScrapedByStore = products => {
+  const counts = new Map();
+  for (const product of products) {
+    for (const price of product.prices || []) {
+      if (priceKey(price)) counts.set(price.store_id, (counts.get(price.store_id) || 0) + 1);
+    }
+  }
+  return counts;
+};
+
+const snapshot = product => JSON.stringify([product.name, product.image_url, product.category_id, product.unit, product.description,
+  [...(product.prices || [])].sort((a, b) => a.store_id - b.store_id)]);
+
+// Actualiza el catálogo con un nuevo resultado del scraper SIN cambiar los ids de los productos
+// existentes (las reseñas y favoritos siguen apuntando al mismo producto).
+// - Un producto se reconoce por el enlace de su página en cada tienda.
+// - Los precios de productos que la tienda ya no publica se retiran; si el producto queda sin
+//   precios se elimina (o, si su ficha pasó a otro producto, sus reseñas/favoritos se trasladan: `remap`).
+// - Los productos creados por el administrador (sin enlace de tienda) no se tocan.
+function mergeCatalog(currentProducts, freshCards, { minStoreRatio = MIN_STORE_RATIO } = {}) {
+  const currentCounts = countScrapedByStore(currentProducts);
+  const freshCounts = countScrapedByStore(freshCards);
+  const skippedStores = new Set(
+    [...currentCounts].filter(([storeId, count]) => (freshCounts.get(storeId) || 0) < count * minStoreRatio).map(([storeId]) => storeId)
+  );
+
+  const ownerByKey = new Map();
+  for (const product of currentProducts) {
+    for (const price of product.prices || []) {
+      const key = priceKey(price);
+      if (key && !ownerByKey.has(key)) ownerByKey.set(key, product.id);
+    }
+  }
+  const currentById = new Map(currentProducts.map(product => [product.id, product]));
+
+  let nextId = currentProducts.reduce((max, product) => Math.max(max, product.id), 0) + 1;
+  const claimed = new Map(); // id existente -> tarjeta nueva
+  const newProducts = [];
+  const keyDestination = new Map(); // clave de precio -> id final
+
+  for (const card of freshCards) {
+    const prices = (card.prices || []).filter(price => !skippedStores.has(price.store_id));
+    if (!prices.length) continue;
+    const votes = new Map();
+    for (const price of prices) {
+      const owner = ownerByKey.get(priceKey(price));
+      if (owner !== undefined && !claimed.has(owner)) votes.set(owner, (votes.get(owner) || 0) + 1);
+    }
+    const [target] = [...votes].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([id]) => id);
+    const entry = { ...card, prices };
+    if (target !== undefined) claimed.set(target, entry);
+    else newProducts.push({ ...entry, id: nextId++ });
+    const finalId = target !== undefined ? target : nextId - 1;
+    for (const price of prices) keyDestination.set(priceKey(price), finalId);
+  }
+
+  // Precios que se conservan del producto actual: los de tiendas omitidas y los cargados a mano.
+  const keptPrices = (product, coveredStores) => (product.prices || []).filter(price =>
+    !coveredStores.has(price.store_id) && (skippedStores.has(price.store_id) || !priceKey(price)));
+
+  const products = [];
+  const changedProducts = [];
+  const removedIds = [];
+  const remap = new Map();
+  let updated = 0;
+
+  for (const current of currentProducts) {
+    const card = claimed.get(current.id);
+    let next;
+    if (card) {
+      const coveredStores = new Set(card.prices.map(price => price.store_id));
+      next = {
+        ...current,
+        image_url: card.image_url || current.image_url,
+        // La descripción automática dice en qué tiendas está; la escrita por el administrador se respeta.
+        description: !current.description || current.description.startsWith('Presentación:') ? card.description : current.description,
+        prices: [...card.prices, ...keptPrices(current, coveredStores)].sort((a, b) => a.store_id - b.store_id)
+      };
+    } else {
+      next = { ...current, prices: keptPrices(current, new Set()) };
+      if (!next.prices.length) {
+        removedIds.push(current.id);
+        const moved = (current.prices || []).map(price => keyDestination.get(priceKey(price))).find(id => id !== undefined);
+        if (moved !== undefined) remap.set(current.id, moved);
+        continue;
+      }
+    }
+    products.push(next);
+    if (snapshot(next) !== snapshot(current)) { changedProducts.push(next); updated++; }
+  }
+
+  products.push(...newProducts);
+  changedProducts.push(...newProducts);
+
+  return {
+    products,
+    changedProducts,
+    removedIds,
+    remap,
+    skippedStores: [...skippedStores],
+    stats: { total: products.length, updated, created: newProducts.length, removed: removedIds.length, unchanged: currentById.size - updated - removedIds.length }
+  };
+}
+
+module.exports = { mergeCatalog, MIN_STORE_RATIO };

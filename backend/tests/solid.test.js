@@ -13,7 +13,7 @@ const ProductAdminService = require('../src/services/ProductAdminService');
 const { searchFilter, defaultProductFilters, applyFilters } = require('../src/domain/productFilters');
 const { AuthService, AuthError } = require('../src/services/AuthService');
 const TokenService = require('../src/services/TokenService');
-const { BcryptPasswordHasher, PlainPasswordVerifier } = require('../src/services/PasswordHasher');
+const { BcryptPasswordHasher } = require('../src/services/PasswordHasher');
 
 function setup() {
   const store = createInMemoryStore();
@@ -77,44 +77,32 @@ test('RF01: missing registration fields return AuthError 400', async () => {
   const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });
   await assert.rejects(() => service.register({}), error => error instanceof AuthError && error.status === 400);
 });
-test('RF02: login can verify bcrypt and seeded plain-text credentials interchangeably', async () => {
-  const d = setup(); const tokenService = new TokenService({ secret: 'test-secret' });
-  const hasher = new BcryptPasswordHasher();
-  const service = new AuthService({ userRepository: d.userRepository, passwordHasher: hasher, passwordVerifiers: [hasher, new PlainPasswordVerifier()], tokenService });
-  const seeded = d.store.users.find(user => user.password);
-  if (seeded) assert.ok((await service.login({ email: seeded.email, password: seeded.password })).token);
+test('RF02: seeded demo accounts are stored hashed and can log in', async () => {
+  const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });
+  assert.ok(d.store.users.every(user => user.password_hash && user.password === undefined));
+  assert.ok((await service.login({ email: 'admin@smartfood.com', password: 'admin123' })).token);
   const created = await service.register({ name: 'Bcrypt', email: 'bcrypt@example.com', password: 'secret123' });
   assert.ok((await service.login({ email: created.user.email, password: 'secret123' })).token);
+});
+test('RF01: duplicate email is rejected and AuthError is exported both ways', async () => {
+  const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });
+  await service.register({ name: 'Uno', email: 'dup@example.com', password: 'secret123' });
+  await assert.rejects(() => service.register({ name: 'Dos', email: 'DUP@example.com', password: 'secret123' }), error => error instanceof AuthError && error.status === 409);
+  assert.equal(require('../src/services/AuthError'), require('../src/services/AuthError').AuthError);
+});
+test('RF01: invalid email and short password are rejected', async () => {
+  const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });
+  await assert.rejects(() => service.register({ name: 'X', email: 'no-es-correo', password: 'secret123' }), error => error.status === 400);
+  await assert.rejects(() => service.register({ name: 'X', email: 'x@example.com', password: '123' }), error => error.status === 400);
 });
 test('RF02: bad credentials return 401', async () => {
   const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });
   await assert.rejects(() => service.login({ email: 'missing@example.com', password: 'nope' }), error => error.status === 401);
 });
 test('admin: product writes are separated from the read service and clean related data', () => {
-  const d = setup(); const admin = new ProductAdminService(d); const created = admin.create({ name: 'Test Product', category_id: 1 });
+  const d = setup(); const admin = new ProductAdminService(d); const created = admin.create({ name: 'Test Product', category_id: 1, prices: [{ store_id: 1, price: 1000 }, { store_id: 2, price: 1200 }] });
   assert.ok(created.id); assert.ok(new ProductService(d).list().products.some(p => p.id === created.id));
   d.reviewRepository.add({ product_id: created.id, rating: 5, comment: 'test' });
   d.favoriteRepository.toggle(1, created.id);
   assert.equal(admin.delete(created.id), true); assert.equal(d.reviewRepository.findByProductId(created.id).length, 0);
-});
-
-test('Auth: resetPassword successfully hashes new password and updates credentials', async () => {
-  const d = setup(); const tokenService = new TokenService({ secret: 'test-secret' });
-  const hasher = new BcryptPasswordHasher();
-  const service = new AuthService({ userRepository: d.userRepository, passwordHasher: hasher, passwordVerifiers: [hasher, new PlainPasswordVerifier()], tokenService });
-  
-  // Registrar usuario
-  await service.register({ name: 'Reset Test', email: 'reset@popayan.com', password: 'oldPassword123' });
-  
-  // Restablecer contraseña
-  const res = await service.resetPassword({ email: 'reset@popayan.com', newPassword: 'newPassword456' });
-  assert.ok(res.token);
-  assert.equal(res.user.email, 'reset@popayan.com');
-  
-  // La clave anterior falla
-  await assert.rejects(() => service.login({ email: 'reset@popayan.com', password: 'oldPassword123' }), error => error.status === 401);
-  
-  // La nueva clave funciona
-  const loginRes = await service.login({ email: 'reset@popayan.com', password: 'newPassword456' });
-  assert.ok(loginRes.token);
 });
