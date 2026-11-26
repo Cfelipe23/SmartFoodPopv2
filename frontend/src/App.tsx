@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { AlertCircle, Loader2, Store } from 'lucide-react';
 import Header from './components/layout/Header';
 import HeroBanner from './components/layout/HeroBanner';
@@ -14,6 +15,8 @@ import { useFavorites } from './hooks/useFavorites';
 import { reviewApi } from './api/reviewApi';
 import { healthApi } from './api/healthApi';
 import { filterProducts } from './utils/filterProducts';
+import type { CreateReviewInput, HealthResponse, Product } from './types/api';
+import type { DisplayProduct, Feedback, ProductTab } from './types/presentation';
 
 const PAGE_SIZE = 24;
 
@@ -23,7 +26,14 @@ const EMPTY_MESSAGES = {
   favorites: { title: 'Aún no tienes productos guardados', text: 'Toca el corazón de un producto para guardarlo y consultarlo después.' }
 };
 
-function StatusBox({ icon, title, text, children }) {
+interface StatusBoxProps {
+  icon: ReactNode;
+  title: string;
+  text?: string;
+  children?: ReactNode;
+}
+
+function StatusBox({ icon, title, text, children }: StatusBoxProps) {
   return (
     <div style={{ background: 'white', border: '1px solid #e2e8f0', padding: '3rem 1.5rem', borderRadius: '16px', textAlign: 'center', color: '#64748b' }}>
       {icon}
@@ -38,24 +48,24 @@ export default function App() {
   const { user, login, register, logout } = useAuth();
   const { products, stores, categories, loading, error, reload, addProduct, updateProduct, deleteProduct } = useProducts();
 
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState<DisplayProduct | null>(null);
   const { detail, loading: detailLoading, error: detailError, reload: reloadDetail } = useProductDetail(selectedProduct?.id);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStore, setSelectedStore] = useState('all');
-  const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'offers' | 'favorites'
+  const [activeTab, setActiveTab] = useState<ProductTab>('catalog');
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [notice, setNotice] = useState(null);
-  const [storage, setStorage] = useState('');
+  const [notice, setNotice] = useState<Feedback | null>(null);
+  const [storage, setStorage] = useState<HealthResponse['storage'] | ''>('');
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   // Aviso (solo en desarrollo) cuando el backend no está conectado a PostgreSQL.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    healthApi.getHealth().then(res => setStorage(res.storage)).catch(() => setStorage(''));
+    healthApi.getHealth().then(res => setStorage(res?.storage ?? '')).catch(() => setStorage(''));
   }, []);
 
   const { favorites, toggleFavorite } = useFavorites({ user, onAuthRequired: () => setIsAuthOpen(true) });
@@ -71,17 +81,18 @@ export default function App() {
   const visibleCount = pageState.key === filterKey ? pageState.count : PAGE_SIZE;
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  const handleToggleFavorite = async (productId) => {
+  const handleToggleFavorite = async (productId: Product['id']) => {
     try {
       const message = await toggleFavorite(productId);
       if (message) setNotice({ type: 'success', text: message });
     } catch (err) {
-      setNotice({ type: 'error', text: err.message });
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'No se pudo actualizar el producto guardado.' });
     }
   };
 
-  const handleAddReview = async (productId, rating, comment) => {
+  const handleAddReview = async (productId: Product['id'], rating: number, comment: CreateReviewInput['comment']) => {
     const res = await reviewApi.addReview(productId, rating, comment);
+    if (res === null) throw new Error('La respuesta del servidor no confirma la publicación de la reseña.');
     reloadDetail();
     return res.message;
   };
@@ -92,7 +103,7 @@ export default function App() {
     if (activeTab === 'favorites') setActiveTab('catalog');
   };
 
-  const handleSelectSimilar = (productId) => {
+  const handleSelectSimilar = (productId: Product['id']) => {
     setSelectedProduct(products.find(p => p.id === productId) || null);
   };
 

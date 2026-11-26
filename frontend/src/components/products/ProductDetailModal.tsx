@@ -1,20 +1,38 @@
 import { useState } from 'react';
-import { X, Star, Send, TrendingDown, Store, MessageSquare, Layers, ExternalLink, Heart } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { X, Star, Send, TrendingDown, Store as StoreIcon, MessageSquare, Layers, ExternalLink, Heart } from 'lucide-react';
 import { formatCop, discountPercent } from '../../utils/format';
 import { buildComparison } from '../../utils/comparison';
+import type { CreateReviewInput, Product, ProductDetailResponse, PublicUser, Review, Store } from '../../types/api';
+import type { DisplayProduct, Feedback } from '../../types/presentation';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
 const MAX_COMMENT_LENGTH = 1000;
 const sectionTitleStyle = { fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' };
 
-function StarRow({ value, size = 14 }) {
+function StarRow({ value, size = 14 }: { value: Review['rating']; size?: number }) {
   return (
     <div style={{ display: 'flex' }} aria-label={`${value} de 5 estrellas`}>
       {[1, 2, 3, 4, 5].map((s) => (
-        <Star key={s} size={size} fill={s <= value ? '#f59e0b' : 'none'} color={s <= value ? '#f59e0b' : '#cbd5e1'} />
+        <Star key={s} size={size} fill={s <= (value ?? 0) ? '#f59e0b' : 'none'} color={s <= (value ?? 0) ? '#f59e0b' : '#cbd5e1'} />
       ))}
     </div>
   );
+}
+
+interface ProductDetailModalProps {
+  product: DisplayProduct;
+  detail: ProductDetailResponse | null;
+  loading: boolean;
+  error: string;
+  stores?: readonly Store[];
+  onClose: () => void;
+  onAddReview: (productId: Product['id'], rating: number, comment: CreateReviewInput['comment']) => Promise<string>;
+  onSelectSimilar: (productId: Product['id']) => void;
+  user: PublicUser | null;
+  onOpenAuth: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (productId: Product['id']) => void;
 }
 
 // RF05 (detalle), RF06 (reseñas) y RF07 (comparación de precios entre tiendas)
@@ -31,32 +49,37 @@ export default function ProductDetailModal({
   onOpenAuth,
   isFavorite = false,
   onToggleFavorite
-}) {
+}: ProductDetailModalProps) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reviewFeedback, setReviewFeedback] = useState(null); // { type, text }
+  const [reviewFeedback, setReviewFeedback] = useState<Feedback | null>(null);
 
   const shown = detail?.product || product;
   const reviews = detail?.reviews || [];
   const summary = detail?.review_summary || { count: 0, average: 0 };
   const similar = detail?.similar || [];
-  const { id, name, description, unit, image_url, category_name } = shown;
+  const { id, name, description, unit, image_url } = shown;
+  const categoryName = detail?.product.category_name;
 
   // El detalle trae los precios enriquecidos; el equivalente en la otra tienda viene del listado.
   const comparison = buildComparison({ ...shown, equivalent: product.equivalent }, stores);
-  const rows = [...comparison.rows].sort((a, b) => (comparison.basis === 'unit' ? a.unit_price.value - b.unit_price.value : a.price - b.price));
+  const rows = [...comparison.rows].sort((a, b) => (comparison.basis === 'unit'
+    ? (a.unit_price?.value ?? a.price) - (b.unit_price?.value ?? b.price)
+    : a.price - b.price));
   const isComparable = comparison.comparable;
   const storeNames = [...new Set(rows.map(row => stores.find(s => s.id === row.store_id)?.name).filter(Boolean))];
   const bestRow = comparison.best;
   const worstRow = rows[rows.length - 1];
   const maxSavings = isComparable && bestRow && worstRow && comparison.basis === 'price' ? worstRow.price - bestRow.price : 0;
   const savingsPct = maxSavings > 0 ? Math.round((maxSavings / worstRow.price) * 100) : 0;
-  const unitSavingsPct = isComparable && comparison.basis === 'unit' && worstRow.unit_price.value > 0
-    ? Math.round(((worstRow.unit_price.value - bestRow.unit_price.value) / worstRow.unit_price.value) * 100)
+  const worstUnitPrice = worstRow?.unit_price?.value ?? 0;
+  const bestUnitPrice = bestRow?.unit_price?.value;
+  const unitSavingsPct = isComparable && comparison.basis === 'unit' && worstUnitPrice > 0 && bestUnitPrice !== undefined
+    ? Math.round(((worstUnitPrice - bestUnitPrice) / worstUnitPrice) * 100)
     : 0;
 
-  const handleSubmitReview = async (e) => {
+  const handleSubmitReview = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setReviewFeedback(null);
     if (!comment.trim()) {
@@ -70,7 +93,7 @@ export default function ProductDetailModal({
       setRating(5);
       setReviewFeedback({ type: 'success', text: message || 'Reseña publicada con éxito' });
     } catch (err) {
-      setReviewFeedback({ type: 'error', text: err.message });
+      setReviewFeedback({ type: 'error', text: err instanceof Error ? err.message : 'No se pudo publicar la reseña.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +109,7 @@ export default function ProductDetailModal({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
           <div>
             <img
-              src={image_url}
+              src={image_url ?? undefined}
               alt={name}
               onError={(e) => {
                 e.currentTarget.onerror = null;
@@ -118,7 +141,7 @@ export default function ProductDetailModal({
 
             <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.2rem 0.75rem', fontSize: '0.82rem', marginBottom: '0.9rem' }}>
               <dt style={{ color: '#64748b', fontWeight: 600 }}>Categoría</dt>
-              <dd>{category_name || 'Sin categoría'}</dd>
+              <dd>{categoryName || 'Sin categoría'}</dd>
               <dt style={{ color: '#64748b', fontWeight: 600 }}>Presentación</dt>
               <dd>{unit}</dd>
               <dt style={{ color: '#64748b', fontWeight: 600 }}>Disponible en</dt>
@@ -151,7 +174,7 @@ export default function ProductDetailModal({
 
         <div style={{ marginBottom: '1.75rem' }}>
           <h3 style={sectionTitleStyle}>
-            <Store size={18} color="#059669" /> {isComparable ? 'Comparativa por tienda' : 'Precio en tienda'}
+            <StoreIcon size={18} color="#059669" /> {isComparable ? 'Comparativa por tienda' : 'Precio en tienda'}
           </h3>
 
           {!isComparable && rows.length === 1 && (
@@ -164,7 +187,7 @@ export default function ProductDetailModal({
             {rows.length === 0 && <p style={{ fontSize: '0.88rem', color: '#94a3b8' }}>Sin precios registrados.</p>}
             {rows.map((row) => {
               const store = stores.find(s => s.id === row.store_id);
-              const isBest = Boolean(bestRow) && bestRow.key === row.key;
+              const isBest = bestRow?.key === row.key;
               const discount = row.is_offer ? discountPercent(row.previous_price, row.price) : 0;
               const link = row.source_url;
 
@@ -226,7 +249,7 @@ export default function ProductDetailModal({
                   onClick={() => onSelectSimilar(item.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', textAlign: 'left', background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.55rem 0.8rem', cursor: 'pointer' }}
                 >
-                  <img src={item.image_url} alt="" style={{ width: '42px', height: '42px', objectFit: 'contain', borderRadius: '6px', background: '#f8fafc' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_IMAGE; }} />
+                  <img src={item.image_url ?? undefined} alt="" style={{ width: '42px', height: '42px', objectFit: 'contain', borderRadius: '6px', background: '#f8fafc' }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_IMAGE; }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{item.name}</div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.unit}</div>

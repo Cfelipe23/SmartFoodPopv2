@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import type { CSSProperties, FormEvent } from 'react';
 import { X, Lock, Mail, User, ArrowRight } from 'lucide-react';
+import type { AuthContextValue } from '../../context/authContext';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
 const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem' };
-const iconStyle = { position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' };
+const iconStyle: CSSProperties = { position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' };
 const inputStyle = { borderRadius: '8px', paddingLeft: '2.4rem' };
 const linkButtonStyle = { background: 'none', border: 'none', color: '#059669', fontWeight: 700, marginLeft: '0.3rem', cursor: 'pointer' };
 
@@ -14,9 +16,17 @@ const DEMO_ACCOUNTS = {
   admin: { email: 'admin@smartfood.com', password: 'admin123' }
 };
 
+type AuthMode = 'login' | 'register';
+
+interface AuthModalProps {
+  onClose: () => void;
+  onLogin: AuthContextValue['login'];
+  onRegister: AuthContextValue['register'];
+}
+
 // RF01 (registro) y RF02 (inicio de sesión)
-export default function AuthModal({ onClose, onLogin, onRegister }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+export default function AuthModal({ onClose, onLogin, onRegister }: AuthModalProps) {
+  const [mode, setMode] = useState<AuthMode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,7 +36,7 @@ export default function AuthModal({ onClose, onLogin, onRegister }) {
 
   const isRegister = mode === 'register';
 
-  const switchMode = (nextMode) => {
+  const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
     setErrorMsg('');
     setSuccessMsg('');
@@ -39,7 +49,7 @@ export default function AuthModal({ onClose, onLogin, onRegister }) {
     return '';
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -56,12 +66,12 @@ export default function AuthModal({ onClose, onLogin, onRegister }) {
       setSuccessMsg(message || (isRegister ? 'Registro exitoso' : 'Sesión iniciada'));
       setTimeout(onClose, 1100);
     } catch (err) {
-      setErrorMsg(err.message || 'Ocurrió un error. Intenta nuevamente.');
+      setErrorMsg((err instanceof Error && err.message) || 'Ocurrió un error. Intenta nuevamente.');
       setLoading(false);
     }
   };
 
-  const fillDemo = (type) => {
+  const fillDemo = (type: keyof typeof DEMO_ACCOUNTS) => {
     setEmail(DEMO_ACCOUNTS[type].email);
     setPassword(DEMO_ACCOUNTS[type].password);
     setErrorMsg('');

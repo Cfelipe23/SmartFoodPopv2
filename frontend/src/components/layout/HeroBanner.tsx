@@ -1,6 +1,6 @@
 import { MapPin, TrendingDown } from 'lucide-react';
 
-export default function HeroBanner({ productCount = 0 }) {
+export default function HeroBanner({ productCount = 0 }: { productCount?: number }) {
   return (
     <div className="hero-section">
       <div className="hero-container">

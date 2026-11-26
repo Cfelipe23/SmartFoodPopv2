@@ -1,13 +1,23 @@
 import { Heart, Eye, TrendingDown, Scale } from 'lucide-react';
 import { formatCop, discountPercent } from '../../utils/format';
 import { buildComparison } from '../../utils/comparison';
+import type { Product, ProductPrice, Store } from '../../types/api';
+import type { DisplayProduct } from '../../types/presentation';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
 
-export default function ProductCard({ product, stores = [], onSelectProduct, isFavorite, onToggleFavorite }) {
+interface ProductCardProps {
+  product: DisplayProduct;
+  stores?: readonly Store[];
+  onSelectProduct: (product: DisplayProduct) => void;
+  isFavorite: boolean;
+  onToggleFavorite: (productId: Product['id']) => void;
+}
+
+export default function ProductCard({ product, stores = [], onSelectProduct, isFavorite, onToggleFavorite }: ProductCardProps) {
   const { id, name, unit, image_url, prices = [] } = product;
   const comparison = buildComparison(product, stores);
-  const storeOf = (storeId) => stores.find(s => s.id === storeId);
+  const storeOf = (storeId: ProductPrice['store_id']) => stores.find(s => s.id === storeId);
   const hasOffer = prices.some(p => p.is_offer) || comparison.rows.some(row => row.is_offer);
   const bestStore = comparison.best ? storeOf(comparison.best.store_id) : null;
   const measureLabel = comparison.measure ? `por ${comparison.measure}` : '';
@@ -28,7 +38,7 @@ export default function ProductCard({ product, stores = [], onSelectProduct, isF
         }}
       >
         <img
-          src={image_url}
+          src={image_url ?? undefined}
           alt={name}
           className="card-img"
           loading="lazy"
@@ -92,7 +102,7 @@ export default function ProductCard({ product, stores = [], onSelectProduct, isF
                         {discount > 0 ? `-${discount}%` : 'OFERTA'}
                       </span>
                     )}
-                    {row.is_offer && row.previous_price > row.price && (
+                    {row.is_offer && row.previous_price != null && row.previous_price > row.price && (
                       <span style={{ fontSize: '0.75rem', color: '#94a3b8', textDecoration: 'line-through' }}>{formatCop(row.previous_price)}</span>
                     )}
                     <span className={`price-val ${isBest ? 'lowest' : ''}`}>{formatCop(row.price)}</span>

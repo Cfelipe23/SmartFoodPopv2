@@ -1,15 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Search, Heart, User, Shield, Tag, ChevronDown, LogOut } from 'lucide-react';
+import type { PublicUser } from '../../types/api';
+import type { ProductTab } from '../../types/presentation';
+
+interface ProfileMenuProps {
+  user: PublicUser;
+  favoritesCount: number;
+  onOpenFavorites: () => void;
+  onLogout: () => void;
+}
+
+interface HeaderProps extends Omit<ProfileMenuProps, 'user'> {
+  user: PublicUser | null;
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  onOpenAuth: () => void;
+  onOpenAdmin: () => void;
+  activeTab: ProductTab;
+  setActiveTab: (tab: ProductTab) => void;
+}
 
 // HU10: menú de perfil con acceso a los productos guardados.
-function ProfileMenu({ user, favoritesCount, onOpenFavorites, onLogout }) {
+function ProfileMenu({ user, favoritesCount, onOpenFavorites, onLogout }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return undefined;
-    const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const close = (e: MouseEvent) => { if (!(e.target instanceof Node) || !ref.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -18,7 +38,7 @@ function ProfileMenu({ user, favoritesCount, onOpenFavorites, onLogout }) {
     };
   }, [open]);
 
-  const itemStyle = { display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.55rem 0.8rem', background: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', textAlign: 'left' };
+  const itemStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.55rem 0.8rem', background: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', textAlign: 'left' };
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -56,7 +76,7 @@ export default function Header({
   setActiveTab,
   favoritesCount,
   onOpenFavorites
-}) {
+}: HeaderProps) {
   return (
     <header className="app-header">
       <div className="header-container">

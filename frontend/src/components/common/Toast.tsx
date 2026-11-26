@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
+import type { Feedback } from '../../types/presentation';
 
 const TOAST_DURATION_MS = 3500;
 
 // Aviso breve de confirmación o error (se oculta solo).
-export default function Toast({ notice, onDismiss }) {
+export default function Toast({ notice, onDismiss }: { notice: Feedback | null; onDismiss: () => void }) {
   useEffect(() => {
     if (!notice) return undefined;
     const timer = setTimeout(onDismiss, TOAST_DURATION_MS);

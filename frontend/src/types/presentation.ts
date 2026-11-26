@@ -1,4 +1,11 @@
-import type { AdminPriceInput, Category, Product, ProductPrice, Store, UnitPrice } from './api';
+import type { AdminPriceInput, CatalogProduct, Category, Product, ProductPrice, Store, UnitPrice } from './api';
+
+export type DisplayProduct = Product & Partial<Pick<CatalogProduct, 'equivalent'>>;
+
+export interface Feedback {
+  type: 'success' | 'error';
+  text: string;
+}
 
 export type DisplayPrice = Pick<ProductPrice, 'store_id' | 'price'>
   & Partial<Pick<ProductPrice, 'previous_price' | 'is_offer' | 'source_url'>>

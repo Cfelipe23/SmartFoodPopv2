@@ -102,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | React 19 + Vite, con API, sesión, utilidades, hooks y contexto de autenticación en TypeScript estricto. `App.jsx` y los componentes visuales siguen en JSX. Los iconos usan `lucide-react`. |
+| Frontend | React 19 + Vite con el código de aplicación en TypeScript estricto y módulos ESM. Los iconos usan `lucide-react`. |
 | Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Todo el código de aplicación en `backend/src/` usa TypeScript estricto y se compila a CommonJS. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
@@ -233,8 +233,8 @@ D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímp
 
 | Elemento | Archivos |
 |---|---|
-| Composición | `App.jsx`: pestañas (catálogo, ofertas, guardados), filtros, paginación de 24 en 24, modales y avisos. |
-| Componentes | `layout/Header.jsx` (buscador, pestañas, menú de perfil con «Mis productos guardados»), `layout/HeroBanner.jsx`, `products/ProductCard.jsx`, `products/ProductDetailModal.jsx` (detalle, comparativa, guardar, reseñas), `auth/AuthModal.jsx`, `admin/AdminPanel.jsx`, `common/Toast.jsx` |
+| Arranque y composición | `main.tsx` monta `App.tsx` dentro de `StrictMode` y `AuthProvider`. `App.tsx` coordina las pestañas de catálogo, ofertas y guardados, los filtros, la paginación de 24 en 24, los modales y los avisos. |
+| Componentes | `layout/Header.tsx` (buscador, pestañas, menú de perfil), `layout/HeroBanner.tsx`, `products/ProductCard.tsx`, `products/ProductDetailModal.tsx` (detalle, comparativa, favoritos y reseñas), `auth/AuthModal.tsx`, `admin/AdminPanel.tsx`, `common/Toast.tsx` |
 | Estado | `context/AuthContext.tsx` proporciona la sesión tipada por `context/authContext.ts`. `hooks/useAuth.ts` consume el contexto. `useProducts.ts` gestiona catálogo y acciones administrativas, `useProductDetail.ts` el producto seleccionado y `useFavorites.ts` los guardados por usuario. |
 | API | `api/httpClient.ts` añade el token, normaliza los errores y cierra la sesión si el token caduca. Los módulos `authApi`, `productApi`, `reviewApi`, `favoriteApi`, `adminApi` y `healthApi` validan las respuestas con `responseGuards.ts`. |
 | Sesión | `storage/sessionStorage.ts` conserva las claves `smartfood_token` y `smartfood_user` en `localStorage`. |
@@ -243,6 +243,8 @@ D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímp
 `types/api.ts` reexporta solo tipos de los contratos HTTP y entidades que usa el backend. `types/presentation.ts` define las formas que necesitan las utilidades y el formulario. Ante un cambio de API, actualiza el contrato en el backend y su validación en `responseGuards.ts`, y comprueba ambos con el cliente y una respuesta real. Las referencias de tipos se eliminan del bundle y el chequeo necesita esos archivos del repositorio.
 
 El proveedor restaura el usuario local y escucha el evento de caducidad emitido por el cliente HTTP. Cada lectura de detalle queda asociada al identificador seleccionado y su efecto descarta respuestas tras un cambio de selección. Los cambios administrativos y de favoritos requieren una respuesta que confirme la operación antes de actualizar el estado.
+
+El build del frontend ejecuta `tsc` antes de Vite. La configuración de aplicación usa `strict`, `noEmit`, `react-jsx`, resolución `bundler` y `allowJs: false`. Las pruebas en JavaScript se ejecutan por separado con `node:test`. El punto de entrada conserva la extensión explícita en el import de `AuthContext.tsx` para distinguirlo de `authContext.ts` en Windows.
 
 ### 4.6 Seguridad
 
@@ -354,7 +356,7 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 |---|---|---|---|
 | RF01 / HU01 Registro | 1 | `AuthModal` → `AuthService.register`: campos obligatorios, correo válido, contraseña de 6 caracteres o más, correo único, bcrypt, mensaje y sesión iniciada | `api.test.js` HU01, `solid.test.js`, `postgres.test.js` |
 | RF02 / HU02 Inicio de sesión | 1 | `AuthService.login` + JWT; la sesión caducada se cierra sola | `api.test.js` HU02 |
-| RF03 / HU03 Catálogo | 1 | Scraper → `scrapedProductsLoader`/`catalogRefresh` → `GET /products` → `App.jsx` | `api.test.js` HU03, `catalog.test.js`, `catalogRefresh.test.js`, `scraper/tests/*` |
+| RF03 / HU03 Catálogo | 1 | Scraper → `scrapedProductsLoader`/`catalogRefresh` → `GET /products` → `App.tsx` | `api.test.js` HU03, `catalog.test.js`, `catalogRefresh.test.js`, `scraper/tests/*` |
 | RF04 / HU04 Búsqueda | 2 | `Header` + `utils/filterProducts.ts` (sin recargar, ignora tildes); API `?search=` | `api.test.js`, `utils.test.js` RF04 |
 | RF05 / HU05 Detalle | 2 | `ProductDetailModal` / `ProductDetailService` | `api.test.js` HU05, `solid.test.js` RF05 |
 | RF06 / HU06 Reseñas | 2–3 | `ReviewService`: lectura pública y publicación solo con sesión | `api.test.js` HU06, `postgres.test.js` |
@@ -399,6 +401,10 @@ Con Node.js 20.19.0 en Windows se verificaron el build desde `dist/` vacío, `st
 Migración de API, sesión y utilidades del frontend (26-nov-2026) · Frontend 15/15 · backend 64/64 · chequeo de tipos, lint y build correctos. La integración usó Express compilado en memoria y una muestra fija. Se verificaron catálogo, filtros, detalle, comparación, ofertas, sesión, reseñas, favoritos y administración.
 
 Migración de hooks y contexto (26-nov-2026) · Frontend 23/23, con chequeo de tipos, lint y build correctos · backend 64/64 con chequeo de tipos correcto. La integración combinó HTTP contra Express en memoria con una muestra fija y renderizado de `App.jsx` y `ProductCard.jsx` mediante ReactDOM Server. La comprobación visual y de efectos en navegador quedó pendiente por un fallo de acceso a Chrome.
+
+Migración de componentes (26-nov-2026) · Frontend 23/23 y backend 64/64 en Windows con Node.js 20.19.0 y 24.14.0. Pasaron el chequeo de tipos y la compilación de ambos, además del lint del frontend. Nueve escenarios produjeron HTML idéntico antes y después con ReactDOM Server y una muestra fija servida por Express en memoria. El build limpio no contiene módulos del backend ni credenciales de demostración.
+
+Chrome con un perfil temporal verificó el catálogo, los filtros, las ofertas, el detalle comparativo, el registro, el inicio y el cierre de sesión, la caducidad del token, las reseñas, los favoritos y las operaciones administrativas. No registró errores de JavaScript. Las capturas de escritorio coincidieron y el tamaño del contenido móvil fue el mismo antes y después.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 
@@ -458,6 +464,7 @@ Migración de hooks y contexto (26-nov-2026) · Frontend 23/23, con chequeo de t
 - **Vigencia:** los precios son los del último scraping (campo `scraped_at` del JSON). No se garantiza que estén disponibles en la tienda física (excluido del alcance).
 - **Una sola instancia del backend:** las escrituras se encolan desde la memoria del proceso.
 - Si se cambia de cuenta mientras se guarda un favorito, la respuesta de la cuenta anterior puede hacer que la lista actual quede temporalmente vacía. El hook sigue filtrando los favoritos por el identificador del usuario activo.
+- En la prueba de Chrome con una pantalla móvil de 390 px, el contenido ocupa 398 px tanto en la versión JSX como en la versión TSX.
 - **Direcciones de las tiendas** en `data/initialData.ts`. Son de referencia y deben verificarse antes de presentarlas como reales.
 - **Comparación por peso frente a unidad:** algunos productos que se venden por peso en una tienda y por unidad en la otra (p. ej. *Aguacate Hass Unidad*) dan diferencias de precio enormes.
 - **Inconsistencias del documento de alcance** (por corregir en el documento, no en el código): las fichas HU tienen vacío «Requerimiento asociado» y sin marcar la prioridad; el título de RF10 está repetido; HU11 falta en la sección 13; la numeración de criterios es irregular en HU01 y HU11; los sprints de HU07, HU09 y HU11 y los puntos de HU11 difieren entre la ficha, la matriz y el backlog; RF04 dice «buscar y filtrar» en la priorización; RF06 dice «aplicación» en lugar de «publicación».

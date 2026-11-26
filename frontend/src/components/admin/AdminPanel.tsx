@@ -1,24 +1,42 @@
 import { useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { X, Trash2, Edit3, Shield, Check, AlertTriangle } from 'lucide-react';
 import { formatCop } from '../../utils/format';
 import { buildProductPayload } from '../../utils/productPayload';
+import type { Category, CreateProductInput, Product, Store, UpdateProductInput } from '../../types/api';
+import type { Feedback, ProductForm } from '../../types/presentation';
 
 const LIST_LIMIT = 30;
 const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' };
 const fieldStyle = { borderRadius: '8px', paddingLeft: '0.8rem' };
 
-function emptyForm(categories, stores) {
+type PriceField = NonNullable<ProductForm['prices'][Store['id']]>;
+type ProductField = keyof Omit<ProductForm, 'prices'>;
+
+const EMPTY_PRICE: PriceField = { price: '', is_offer: false, previous_price: '' };
+
+interface AdminPanelProps {
+  onClose: () => void;
+  products?: readonly Product[];
+  categories?: readonly Category[];
+  stores?: readonly Store[];
+  onAddProduct: (productData: CreateProductInput) => Promise<string>;
+  onUpdateProduct: (id: Product['id'], productData: UpdateProductInput) => Promise<string>;
+  onDeleteProduct: (id: Product['id']) => Promise<string>;
+}
+
+function emptyForm(categories: readonly Category[], stores: readonly Store[]): ProductForm {
   return {
     name: '',
     description: '',
     category_id: categories[0]?.id ?? 1,
     unit: '',
     image_url: '',
-    prices: Object.fromEntries(stores.map(store => [store.id, { price: '', is_offer: false, previous_price: '' }]))
+    prices: Object.fromEntries(stores.map(store => [store.id, { ...EMPTY_PRICE }]))
   };
 }
 
-function formFromProduct(product, categories, stores) {
+function formFromProduct(product: Product, categories: readonly Category[], stores: readonly Store[]): ProductForm {
   const form = emptyForm(categories, stores);
   form.name = product.name || '';
   form.description = product.description || '';
@@ -26,6 +44,7 @@ function formFromProduct(product, categories, stores) {
   form.unit = product.unit || '';
   form.image_url = product.image_url || '';
   for (const price of product.prices || []) {
+    if (price.store_id === null) continue;
     form.prices[price.store_id] = {
       price: String(price.price),
       is_offer: Boolean(price.is_offer),
@@ -36,12 +55,12 @@ function formFromProduct(product, categories, stores) {
 }
 
 // RF11 / HU11: agregar, editar y eliminar productos (con confirmación antes de eliminar).
-export default function AdminPanel({ onClose, products = [], categories = [], stores = [], onAddProduct, onUpdateProduct, onDeleteProduct }) {
-  const [editingId, setEditingId] = useState(null);
+export default function AdminPanel({ onClose, products = [], categories = [], stores = [], onAddProduct, onUpdateProduct, onDeleteProduct }: AdminPanelProps) {
+  const [editingId, setEditingId] = useState<Product['id'] | null>(null);
   const [form, setForm] = useState(() => emptyForm(categories, stores));
   const [filter, setFilter] = useState('');
-  const [confirmingProduct, setConfirmingProduct] = useState(null);
-  const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text }
+  const [confirmingProduct, setConfirmingProduct] = useState<Product | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState(false);
 
   const visibleProducts = useMemo(() => {
@@ -50,38 +69,41 @@ export default function AdminPanel({ onClose, products = [], categories = [], st
     return { total: matches.length, items: matches.slice(0, LIST_LIMIT) };
   }, [products, filter]);
 
-  const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
-  const updatePrice = (storeId, changes) => setForm(prev => ({ ...prev, prices: { ...prev.prices, [storeId]: { ...prev.prices[storeId], ...changes } } }));
+  const updateField = <K extends ProductField>(field: K, value: ProductForm[K]) => setForm(prev => ({ ...prev, [field]: value }));
+  const updatePrice = (storeId: Store['id'], changes: Partial<PriceField>) => setForm(prev => ({
+    ...prev,
+    prices: { ...prev.prices, [storeId]: { ...(prev.prices[storeId] ?? EMPTY_PRICE), ...changes } }
+  }));
 
   const resetForm = () => {
     setEditingId(null);
     setForm(emptyForm(categories, stores));
   };
 
-  const startEdit = (product) => {
+  const startEdit = (product: Product) => {
     setEditingId(product.id);
     setForm(formFromProduct(product, categories, stores));
     setFeedback(null);
   };
 
-  const runAction = async (action) => {
+  const runAction = async (action: () => Promise<string>) => {
     setBusy(true);
     try {
       const message = await action();
       setFeedback({ type: 'success', text: message });
       return true;
     } catch (err) {
-      setFeedback({ type: 'error', text: err.message });
+      setFeedback({ type: 'error', text: err instanceof Error ? err.message : 'No se pudo completar la operación.' });
       return false;
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const { payload, error } = buildProductPayload(form, stores);
-    if (error) {
+    if (payload === undefined) {
       setFeedback({ type: 'error', text: error });
       return;
     }
@@ -91,6 +113,7 @@ export default function AdminPanel({ onClose, products = [], categories = [], st
 
   const handleConfirmDelete = async () => {
     const product = confirmingProduct;
+    if (!product) return;
     setConfirmingProduct(null);
     const deleted = await runAction(() => onDeleteProduct(product.id));
     if (deleted && editingId === product.id) resetForm();
@@ -154,7 +177,7 @@ export default function AdminPanel({ onClose, products = [], categories = [], st
               <fieldset style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 <legend style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', padding: '0 0.3rem' }}>Precio por tienda * (deja vacío si no se vende)</legend>
                 {stores.map(store => {
-                  const entry = form.prices[store.id] || { price: '', is_offer: false, previous_price: '' };
+                  const entry = form.prices[store.id] ?? EMPTY_PRICE;
                   return (
                     <div key={store.id}>
                       <label htmlFor={`admin-price-${store.id}`} style={labelStyle}>{store.logo} {store.name} ($ COP)</label>
@@ -164,7 +187,7 @@ export default function AdminPanel({ onClose, products = [], categories = [], st
                         En oferta
                       </label>
                       {entry.is_offer && (
-                        <input type="number" min="0" step="1" className="search-input" style={{ ...fieldStyle, marginTop: '0.3rem' }} placeholder="Precio anterior ($ COP)" aria-label={`Precio anterior en ${store.name}`} value={entry.previous_price} onChange={(e) => updatePrice(store.id, { previous_price: e.target.value })} />
+                        <input type="number" min="0" step="1" className="search-input" style={{ ...fieldStyle, marginTop: '0.3rem' }} placeholder="Precio anterior ($ COP)" aria-label={`Precio anterior en ${store.name}`} value={entry.previous_price ?? ''} onChange={(e) => updatePrice(store.id, { previous_price: e.target.value })} />
                       )}
                     </div>
                   );
@@ -202,7 +225,7 @@ export default function AdminPanel({ onClose, products = [], categories = [], st
               {visibleProducts.items.map(p => (
                 <div key={p.id} style={{ background: editingId === p.id ? '#eef2ff' : 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.6rem 0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-                    <img src={p.image_url} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                    <img src={p.image_url ?? undefined} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
                       <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
