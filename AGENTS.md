@@ -54,7 +54,7 @@ React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · Gi
 | Una regla de negocio o validación | En el servicio del caso de uso (`services/`) |
 | Lógica de catálogo (nombres, tamaños, categorías, emparejamiento) | `domain/productNormalizer.ts`, `productClassifier.ts`, `catalogBuilder.ts`, `productEquivalence.ts` |
 | Un filtro de búsqueda | `domain/productFilters.ts` (servidor) y `frontend/src/utils/filterProducts.js` (cliente). Mantén ambos coherentes. |
-| Guardar algo nuevo en la base | `data/schema.sql` (con `IF NOT EXISTS`), un método en `data/PostgresPersistence.js` y su equivalente vacío en `data/persistence.js` (`NoopPersistence`); el repositorio llama a la persistencia |
+| Guardar algo nuevo en la base | `data/schema.sql` (con `IF NOT EXISTS`), el contrato en `data/persistence.ts`, un método en `data/PostgresPersistence.ts` y su equivalente en `NoopPersistence`; el repositorio llama a la persistencia |
 | Una llamada nueva desde el frontend | `frontend/src/api/<recurso>Api.js` → hook en `hooks/` → componente |
 | Un componente visual | `frontend/src/components/<área>/`; los estilos compartidos están en `index.css` (clases `nav-btn`, `modal-content`, `product-card`, …) |
 | Una tienda o fuente nueva del scraper | `scraper/config.py` + `scraper/sources/` (VTEX en `vtex.py`); debe producir el mismo DTO (sección 4.4) |
@@ -102,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 | Capa | Tecnología |
 |---|---|
 | Frontend | React 19 + JavaScript (Vite), `lucide-react` para los iconos |
-| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Dominio y contratos en TypeScript estricto. El resto de las capas sigue en JavaScript y la compilación emite CommonJS. |
+| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Dominio, contratos, datos y repositorios en TypeScript estricto. La compilación emite CommonJS y las capas de servicio y HTTP siguen en JavaScript. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
 
@@ -137,7 +137,7 @@ start.bat
 `start.bat` (también con doble clic) prepara todo y arranca:
 
 1. Comprueba Node.js y su versión.
-2. Instala las dependencias del backend si falta el compilador TypeScript y las del frontend si falta su carpeta `node_modules`.
+2. Instala las dependencias del backend si falta el compilador TypeScript o los tipos de `pg`, y las del frontend si falta su carpeta `node_modules`.
 3. Si hay Python, instala `scraper/requirements.txt` cuando falte `requests`. Sin Python, la app usa los precios guardados.
 4. Si no existe `backend/.env`, configura PostgreSQL **automáticamente** (`npm run db:setup`): busca el servidor en los puertos 5432–5434 y pide **una sola vez** la contraseña del usuario `postgres`, la que se eligió al instalar PostgreSQL. Esa clave no se puede automatizar porque solo la conoce quien lo instaló. Admite 3 intentos; luego crea la base `smartfoodpop` y escribe `backend/.env`, que no se sube a git. Las tablas y el catálogo los crea el backend al arrancar. Si PostgreSQL no está instalado o está apagado (detecta el servicio de Windows y explica cómo iniciarlo), la app arranca **en memoria** y en el siguiente arranque lo vuelve a intentar.
 5. Ejecuta `node run-dev.js`, que levanta el backend en `:5000`, el frontend en la URL «Local» que muestra Vite (normalmente `:5173`) y el scraper en segundo plano. Acepta los mismos argumentos (`start.bat --no-scrape`).
@@ -196,10 +196,10 @@ flowchart LR
 | Servicios | `services/` | `AuthService` (+ `PasswordHasher`, `TokenService`, `AuthError`), `ProductService` (listado y ofertas), `ProductDetailService`, `ProductComparisonService`, `ProductAdminService`, `ReviewService`, `FavoriteService`, `CatalogRefreshService`. |
 | Dominio | `domain/` | `entities.ts` define entidades, presentaciones, equivalencias y el resultado de actualización. Los módulos TypeScript `productNormalizer`, `productClassifier`, `catalogBuilder`, `productEquivalence`, `catalogRefresh`, `productFilters`, `queryHelpers`, `productUrl`, `imageResolver` y `httpError` contienen la lógica pura. |
 | Contratos | `contracts/` y `data/postgresRows.ts` | `scraper.ts` comprueba registros del JSON, `api.ts` describe entradas y respuestas HTTP, y `postgresRows.ts` describe las proyecciones SQL antes de convertir decimales y fechas. |
-| Repositorios | `repositories/` | `Product`, `Catalog` (tiendas y categorías), `User`, `Review`, `Favorite`. Leen de memoria y delegan la escritura a la persistencia. |
-| Datos | `data/` | `schema.sql`, `PostgresPersistence.js`, `persistence.js` (`NoopPersistence`), `inMemoryStore.js`, `initialData.js` (tiendas, categorías y cuentas demo), `scrapedProductsLoader.js`. |
+| Repositorios | `repositories/` | Clases TypeScript `ProductRepository`, `CatalogRepository` (tiendas y categorías), `UserRepository`, `ReviewRepository` y `FavoriteRepository`. Leen de memoria y delegan la escritura al contrato `Persistence`. |
+| Datos | `data/` | `schema.sql`, `PostgresPersistence.ts`, `persistence.ts` (`Persistence`, `CatalogPersistence` y `NoopPersistence`), `inMemoryStore.ts`, `initialData.ts` (tiendas, categorías y cuentas demo), `scrapedProductsLoader.ts`. |
 | Composición | `container.js` | `buildContainer` (también lo usan las pruebas) y `bootstrapContainer` (arranque con PostgreSQL). |
-| Scripts | `backend/scripts/` | `setup-db.js` y `check-db.js`. |
+| Scripts | `backend/scripts/` | `setup-db.js` y `check-db.js`. Sus comandos npm compilan el backend y cargan la persistencia desde `dist/`. |
 
 ### 4.2 Persistencia y arranque
 
@@ -363,7 +363,7 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 |---|---|---|
 | Unitarias (servicios, dominio, sustitución de dependencias) | `node:test` | `backend/tests/solid.test.js`, `catalog.test.js`, `catalogRefresh.test.js`, `equivalence.test.js`, `equivalence-quality.test.js`, `domainContracts.test.js` |
 | Integración HTTP (servidor Express real, una sección por HU) | `node:test` + `fetch` | `backend/tests/api.test.js` (datos de `tests/fixtures/scraped_sample.json`) |
-| Persistencia | `node:test` + `pg-mem` (verificado también contra PostgreSQL 16 y 18 reales) | `backend/tests/postgres.test.js` |
+| Persistencia | `node:test` + `pg-mem` y pool simulado (verificado también contra PostgreSQL 16 y 18 reales en versiones previas) | `backend/tests/postgres.test.js`, `backend/tests/persistenceContracts.test.js` |
 | Frontend (filtros, comparación, formato, validación del administrador) | `node:test` | `frontend/src/utils/*.test.js` |
 | Scraper (contrato, paginación, reintentos, categorías, búsquedas, URL) | `unittest` | `scraper/tests/` |
 | Estáticas | `tsc`, `oxlint`, `vite build` | `npm --prefix backend run typecheck`, `npm run lint`, `npm run build` |
@@ -375,6 +375,8 @@ Las pruebas del backend ejecutan el código compilado en `dist/`. Las de persist
 Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build correcto.
 
 Migración del dominio (26-nov-2026) · Backend 58/58 · chequeo de tipos y build correctos. La comparación antes y después con una copia fija del JSON incluyó productos, precios, ofertas, categorías, equivalencias y actualización con cobertura parcial.
+
+Migración de persistencia y repositorios (26-nov-2026) · Backend 60/60 · chequeo de tipos y build correctos. Las dos pruebas nuevas cubren el mapeo de filas y el orden de la cola tras un rollback.
 
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 
@@ -433,7 +435,7 @@ Migración del dominio (26-nov-2026) · Backend 58/58 · chequeo de tipos y buil
 - **Cobertura:** de unos 4.100 productos del scraper, cerca de 1.010 son comparables y se muestran; el resto no tiene contraparte en la otra tienda. Un producto que crea el administrador con una sola tienda y sin equivalente no aparece en el catálogo.
 - **Vigencia:** los precios son los del último scraping (campo `scraped_at` del JSON). No se garantiza que estén disponibles en la tienda física (excluido del alcance).
 - **Una sola instancia del backend:** las escrituras se encolan desde la memoria del proceso.
-- **Direcciones de las tiendas** en `data/initialData.js`: son de referencia; verifícalas antes de presentarlas como reales.
+- **Direcciones de las tiendas** en `data/initialData.ts`. Son de referencia y deben verificarse antes de presentarlas como reales.
 - **Comparación por peso frente a unidad:** algunos productos que se venden por peso en una tienda y por unidad en la otra (p. ej. *Aguacate Hass Unidad*) dan diferencias de precio enormes.
 - **Inconsistencias del documento de alcance** (por corregir en el documento, no en el código): las fichas HU tienen vacío «Requerimiento asociado» y sin marcar la prioridad; el título de RF10 está repetido; HU11 falta en la sección 13; la numeración de criterios es irregular en HU01 y HU11; los sprints de HU07, HU09 y HU11 y los puntos de HU11 difieren entre la ficha, la matriz y el backlog; RF04 dice «buscar y filtrar» en la priorización; RF06 dice «aplicación» en lugar de «publicación».
 

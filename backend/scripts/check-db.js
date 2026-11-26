@@ -3,7 +3,7 @@
 require('dotenv').config();
 
 const env = require('../src/config/env');
-const { PostgresPersistence, describeDbError } = require('../src/data/PostgresPersistence');
+const { PostgresPersistence, describeDbError } = require('../dist/data/PostgresPersistence');
 
 async function main() {
   const persistence = PostgresPersistence.fromEnv(env);

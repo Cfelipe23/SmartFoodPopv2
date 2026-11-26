@@ -13,7 +13,7 @@ const readline = require('readline');
 const net = require('net');
 const { execSync } = require('child_process');
 const { Client } = require('pg');
-const { describeDbError } = require('../src/data/PostgresPersistence');
+const { describeDbError } = require('../dist/data/PostgresPersistence');
 
 const ENV_PATH = path.join(__dirname, '../.env');
 const host = process.env.PGHOST || 'localhost';

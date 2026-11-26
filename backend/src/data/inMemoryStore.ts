@@ -1,8 +1,23 @@
-const { initialStores, initialCategories, initialProducts, demoUsers, initialReviews, initialFavorites } = require('./initialData');
-const { BcryptPasswordHasher } = require('../services/PasswordHasher');
+import type { Category, Favorite, Product, Review, Store, User } from '../domain/entities';
+import { BcryptPasswordHasher } from '../services/PasswordHasher';
+import { initialStores, initialCategories, initialProducts, demoUsers, initialReviews, initialFavorites } from './initialData';
+
+export interface InMemoryStore {
+  stores: Store[];
+  categories: Category[];
+  products: Product[];
+  users: User[];
+  reviews: Review[];
+  favorites: Favorite[];
+  catalogVersion?: number;
+}
+
+interface SyncPasswordHasher {
+  hashSync(password: string): string;
+}
 
 // Hash de las cuentas de demostración (nunca se guarda la contraseña en texto plano).
-function buildDemoUsers(hasher = new BcryptPasswordHasher()) {
+export function buildDemoUsers(hasher: SyncPasswordHasher = new BcryptPasswordHasher()): User[] {
   return demoUsers.map(({ passwordEnv, defaultPassword, ...user }) => ({
     ...user,
     password_hash: hasher.hashSync(process.env[passwordEnv] || defaultPassword)
@@ -10,7 +25,7 @@ function buildDemoUsers(hasher = new BcryptPasswordHasher()) {
 }
 
 // Estado en memoria. Con PostgreSQL configurado se rellena desde la base (ver PostgresPersistence).
-function createInMemoryStore() {
+export function createInMemoryStore(): InMemoryStore {
   return {
     stores: initialStores.map(store => ({ ...store })),
     categories: initialCategories.map(category => ({ ...category })),
@@ -20,5 +35,3 @@ function createInMemoryStore() {
     favorites: [...initialFavorites]
   };
 }
-
-module.exports = { createInMemoryStore, buildDemoUsers };

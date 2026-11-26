@@ -22,7 +22,10 @@ if errorlevel 1 (
 )
 
 rem --- 2. Dependencias de Node (incluye clones anteriores a TypeScript) ---
-if not exist "backend\node_modules\typescript\bin\tsc" (
+set "INSTALL_BACKEND_DEPS="
+if not exist "backend\node_modules\typescript\bin\tsc" set "INSTALL_BACKEND_DEPS=1"
+if not exist "backend\node_modules\@types\pg\package.json" set "INSTALL_BACKEND_DEPS=1"
+if defined INSTALL_BACKEND_DEPS (
   echo Instalando dependencias del backend...
   call npm --prefix backend install
   if errorlevel 1 goto :error_npm

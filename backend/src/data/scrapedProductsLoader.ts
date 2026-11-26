@@ -1,16 +1,21 @@
-const fs = require('fs');
-const { buildCatalogCards } = require('../domain/catalogBuilder');
+import { existsSync, readFileSync } from 'node:fs';
+import { buildCatalogCards } from '../domain/catalogBuilder';
+import type ProductRepository = require('../repositories/ProductRepository');
 
 // RF03: carga el catálogo desde el JSON generado por el scraper de Python.
 // Devuelve true si el catálogo del scraper reemplazó al dataset de respaldo.
-function loadScrapedProducts(productRepository, scrapedPath, logger = console) {
-  if (!scrapedPath || !fs.existsSync(scrapedPath)) {
+export function loadScrapedProducts(
+  productRepository: Pick<ProductRepository, 'replaceAll'>,
+  scrapedPath?: string | null,
+  logger: Pick<Console, 'log' | 'warn'> = console
+): boolean {
+  if (!scrapedPath || !existsSync(scrapedPath)) {
     logger.warn(`⚠️ [Scraper Data] No existe ${scrapedPath}; se usa el catálogo de respaldo. Ejecute "npm run scrape".`);
     return false;
   }
 
   try {
-    const scrapedItems = JSON.parse(fs.readFileSync(scrapedPath, 'utf8'));
+    const scrapedItems: unknown = JSON.parse(readFileSync(scrapedPath, 'utf8'));
     if (!Array.isArray(scrapedItems)) throw new Error('el JSON del scraper debe ser una lista');
     const cards = buildCatalogCards(scrapedItems);
     if (!cards.length) throw new Error('el JSON no contiene productos válidos');
@@ -19,9 +24,8 @@ function loadScrapedProducts(productRepository, scrapedPath, logger = console) {
     logger.log(`📦 [Scraper Data] ${scrapedItems.length} registros → ${cards.length} productos (${comparable} comparables entre tiendas).`);
     return true;
   } catch (error) {
-    logger.warn('⚠️ Error al cargar productos del scraper:', error.message);
+    const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : undefined;
+    logger.warn('⚠️ Error al cargar productos del scraper:', message);
     return false;
   }
 }
-
-module.exports = { loadScrapedProducts };

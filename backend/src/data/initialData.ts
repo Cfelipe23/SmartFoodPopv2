@@ -1,20 +1,24 @@
 // Seed Data and In-Memory Data Store for SmartFoodPop (Popayán)
 // Alcance: Exclusivamente tiendas locales D1 y Olímpica según sección 2.4 del documento de alcance
 
-const initialStores = [
+import type { Category, Favorite, Product, Review, Store, User } from '../domain/entities';
+
+type DemoUser = Omit<User, 'password_hash'> & { passwordEnv: string; defaultPassword: string };
+
+export const initialStores: Store[] = [
   { id: 1, name: 'Tiendas D1', code: 'd1', logo: '🏬', city: 'Popayán', address: 'Calle 5 # 7-23, Centro' },
   { id: 2, name: 'Supermercado Olímpica', code: 'olimpica', logo: '🛒', city: 'Popayán', address: 'Carrera 9 # 18N-12, Catay' }
 ];
 
 // Categorías del alcance (documento, sección 6.1 ítem 8).
-const initialCategories = [
+export const initialCategories: Category[] = [
   { id: 1, name: 'Granos y Básicos', slug: 'granos-y-basicos', icon: '🌾' },
   { id: 2, name: 'Lácteos', slug: 'lacteos', icon: '🥛' },
   { id: 3, name: 'Aseo del Hogar', slug: 'aseo-del-hogar', icon: '🧹' },
   { id: 4, name: 'Otros', slug: 'otros', icon: '🛍️' }
 ];
 
-const initialProducts = [
+export const initialProducts: Product[] = [
   {
     id: 1,
     name: 'Arroz Blanco Seleccionado (Diana / Albar)',
@@ -91,20 +95,11 @@ const initialProducts = [
 
 // Cuentas de demostración. Las contraseñas se toman del entorno (o valores de desarrollo)
 // y SIEMPRE se guardan como hash bcrypt (ver inMemoryStore.js).
-const demoUsers = [
+export const demoUsers: DemoUser[] = [
   { id: 1, name: 'Usuario Demo Popayán', email: 'usuario@popayan.com', role: 'consumer', passwordEnv: 'SEED_USER_PASSWORD', defaultPassword: 'user123' },
   { id: 2, name: 'Administrador SmartFood', email: 'admin@smartfood.com', role: 'admin', passwordEnv: 'SEED_ADMIN_PASSWORD', defaultPassword: 'admin123' }
 ];
 
 // Las reseñas y favoritos los generan los usuarios reales; no se siembran datos inventados.
-const initialReviews = [];
-const initialFavorites = [];
-
-module.exports = {
-  initialStores,
-  initialCategories,
-  initialProducts,
-  demoUsers,
-  initialReviews,
-  initialFavorites
-};
+export const initialReviews: Review[] = [];
+export const initialFavorites: Favorite[] = [];
