@@ -14,6 +14,7 @@ export async function request<T>(
   options: RequestOptions = {}
 ): Promise<T | null> {
   const token = sessionStorageService.getToken();
+  const revision = sessionStorageService.getRevision();
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -38,7 +39,7 @@ export async function request<T>(
     const errorMessage = readErrorMessage(data);
     const sessionExpired = token && !AUTH_ENDPOINTS.includes(endpoint)
       && (res.status === 401 || errorMessage === 'Token inválido o expirado');
-    if (sessionExpired) {
+    if (sessionExpired && revision === sessionStorageService.getRevision()) {
       sessionStorageService.clear();
       window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
     }

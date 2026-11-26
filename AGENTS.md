@@ -244,6 +244,8 @@ D1 se consulta con su catálogo completo (alimentos y aseo del hogar). De Olímp
 
 El proveedor restaura el usuario local y escucha el evento de caducidad emitido por el cliente HTTP. Cada lectura de detalle queda asociada al identificador seleccionado y su efecto descarta respuestas tras un cambio de selección. Los cambios administrativos y de favoritos requieren una respuesta que confirme la operación antes de actualizar el estado.
 
+La sesión en el navegador tiene una revisión que cambia al iniciar o cerrar sesión, incluso al reutilizar el mismo JWT. El hook de favoritos descarta lecturas y escrituras de una revisión anterior. El cliente HTTP solo caduca la sesión que originó la solicitud rechazada.
+
 El build del frontend ejecuta `tsc` antes de Vite. La configuración de aplicación usa `strict`, `noEmit`, `react-jsx`, resolución `bundler` y `allowJs: false`. Las pruebas en JavaScript se ejecutan por separado con `node:test`. El punto de entrada conserva la extensión explícita en el import de `AuthContext.tsx` para distinguirlo de `authContext.ts` en Windows.
 
 ### 4.6 Seguridad
@@ -463,7 +465,6 @@ Chrome con un perfil temporal verificó el catálogo, los filtros, las ofertas, 
 - **Cobertura:** de unos 4.100 productos del scraper, cerca de 1.010 son comparables y se muestran; el resto no tiene contraparte en la otra tienda. Un producto que crea el administrador con una sola tienda y sin equivalente no aparece en el catálogo.
 - **Vigencia:** los precios son los del último scraping (campo `scraped_at` del JSON). No se garantiza que estén disponibles en la tienda física (excluido del alcance).
 - **Una sola instancia del backend:** las escrituras se encolan desde la memoria del proceso.
-- Si se cambia de cuenta mientras se guarda un favorito, la respuesta de la cuenta anterior puede hacer que la lista actual quede temporalmente vacía. El hook sigue filtrando los favoritos por el identificador del usuario activo.
 - En la prueba de Chrome con una pantalla móvil de 390 px, el contenido ocupa 398 px tanto en la versión JSX como en la versión TSX.
 - **Direcciones de las tiendas** en `data/initialData.ts`. Son de referencia y deben verificarse antes de presentarlas como reales.
 - **Comparación por peso frente a unidad:** algunos productos que se venden por peso en una tienda y por unidad en la otra (p. ej. *Aguacate Hass Unidad*) dan diferencias de precio enormes.
