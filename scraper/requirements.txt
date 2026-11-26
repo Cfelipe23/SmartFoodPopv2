@@ -1,0 +1,4 @@
+# Dependencias del scraper. Instalar con: python -m pip install -r scraper/requirements.txt
+requests>=2.31
+# Opcional (respaldo si la tienda no entrega la sesion regional por HTTP):
+#   python -m pip install playwright && python -m playwright install chromium

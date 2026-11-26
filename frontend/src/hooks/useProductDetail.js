@@ -1,19 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { productApi } from '../api/productApi';
+
+// RF05: detalle del producto (precios por tienda, reseñas y productos similares).
 export function useProductDetail(productId) {
-  const [product, setProduct] = useState(null);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState({ productId: null, detail: null, error: '' });
+  const [version, setVersion] = useState(0);
+
   useEffect(() => {
-    if (!productId) { setProduct(null); setReviews([]); setError(null); return undefined; }
+    if (!productId) return undefined;
     let cancelled = false;
-    setLoading(true); setError(null);
     productApi.getProductDetail(productId)
-      .then(result => { if (!cancelled) { setProduct(result.product || null); setReviews(result.reviews || []); } })
-      .catch(err => { if (!cancelled) setError(err); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .then(detail => { if (!cancelled) setState({ productId, detail, error: '' }); })
+      .catch(err => { if (!cancelled) setState({ productId, detail: null, error: err.message }); });
     return () => { cancelled = true; };
-  }, [productId]);
-  return { product, reviews, loading, error };
+  }, [productId, version]);
+
+  const reload = useCallback(() => setVersion(current => current + 1), []);
+
+  const isCurrent = Boolean(productId) && state.productId === productId;
+  return {
+    detail: isCurrent ? state.detail : null,
+    error: isCurrent ? state.error : '',
+    loading: Boolean(productId) && !isCurrent,
+    reload
+  };
 }

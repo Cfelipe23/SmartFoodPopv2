@@ -1,183 +1,187 @@
-import React, { useState } from 'react';
-import { X, Plus, Trash2, Edit3, Shield, Check } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { X, Trash2, Edit3, Shield, Check, AlertTriangle } from 'lucide-react';
+import { formatCop } from '../../utils/format';
+import { buildProductPayload } from '../../utils/productPayload';
 
-export default function AdminPanel({ 
-  isOpen, 
-  onClose, 
-  products = [], 
-  categories = [], 
-  stores = [], 
-  onAddProduct, 
-  onUpdateProduct, 
-  onDeleteProduct 
-}) {
+const LIST_LIMIT = 30;
+const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' };
+const fieldStyle = { borderRadius: '8px', paddingLeft: '0.8rem' };
+
+function emptyForm(categories, stores) {
+  return {
+    name: '',
+    description: '',
+    category_id: categories[0]?.id ?? 1,
+    unit: '',
+    image_url: '',
+    prices: Object.fromEntries(stores.map(store => [store.id, { price: '', is_offer: false, previous_price: '' }]))
+  };
+}
+
+function formFromProduct(product, categories, stores) {
+  const form = emptyForm(categories, stores);
+  form.name = product.name || '';
+  form.description = product.description || '';
+  form.category_id = product.category_id || form.category_id;
+  form.unit = product.unit || '';
+  form.image_url = product.image_url || '';
+  for (const price of product.prices || []) {
+    form.prices[price.store_id] = {
+      price: String(price.price),
+      is_offer: Boolean(price.is_offer),
+      previous_price: price.is_offer ? String(price.previous_price) : ''
+    };
+  }
+  return form;
+}
+
+// RF11 / HU11: agregar, editar y eliminar productos (con confirmación antes de eliminar).
+export default function AdminPanel({ onClose, products = [], categories = [], stores = [], onAddProduct, onUpdateProduct, onDeleteProduct }) {
   const [editingId, setEditingId] = useState(null);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState(1);
-  const [unit, setUnit] = useState('1 Unidad');
-  const [imageUrl, setImageUrl] = useState('');
-  const [d1Price, setD1Price] = useState(4000);
-  const [olimpicaPrice, setOlimpicaPrice] = useState(4200);
+  const [form, setForm] = useState(() => emptyForm(categories, stores));
+  const [filter, setFilter] = useState('');
+  const [confirmingProduct, setConfirmingProduct] = useState(null);
+  const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text }
+  const [busy, setBusy] = useState(false);
 
-  if (!isOpen) return null;
+  const visibleProducts = useMemo(() => {
+    const term = filter.trim().toLowerCase();
+    const matches = term ? products.filter(p => p.name.toLowerCase().includes(term)) : products;
+    return { total: matches.length, items: matches.slice(0, LIST_LIMIT) };
+  }, [products, filter]);
 
-  const handleStartEdit = (prod) => {
-    setEditingId(prod.id);
-    setName(prod.name);
-    setDescription(prod.description || '');
-    setCategoryId(prod.category_id || 1);
-    setUnit(prod.unit || '1 Unidad');
-    setImageUrl(prod.image_url || '');
+  const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const updatePrice = (storeId, changes) => setForm(prev => ({ ...prev, prices: { ...prev.prices, [storeId]: { ...prev.prices[storeId], ...changes } } }));
 
-    const d1Pr = prod.prices?.find(p => p.store_id === 1);
-    const oliPr = prod.prices?.find(p => p.store_id === 2);
-    setD1Price(d1Pr ? d1Pr.price : 4000);
-    setOlimpicaPrice(oliPr ? oliPr.price : 4200);
+  const resetForm = () => {
+    setEditingId(null);
+    setForm(emptyForm(categories, stores));
   };
 
-  const handleResetForm = () => {
-    setEditingId(null);
-    setName('');
-    setDescription('');
-    setCategoryId(1);
-    setUnit('1 Unidad');
-    setImageUrl('');
-    setD1Price(4000);
-    setOlimpicaPrice(4200);
+  const startEdit = (product) => {
+    setEditingId(product.id);
+    setForm(formFromProduct(product, categories, stores));
+    setFeedback(null);
+  };
+
+  const runAction = async (action) => {
+    setBusy(true);
+    try {
+      const message = await action();
+      setFeedback({ type: 'success', text: message });
+      return true;
+    } catch (err) {
+      setFeedback({ type: 'error', text: err.message });
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const productPayload = {
-      name,
-      description,
-      category_id: parseInt(categoryId),
-      unit,
-      image_url: imageUrl || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
-      prices: [
-        { store_id: 1, price: parseFloat(d1Price), previous_price: parseFloat(d1Price), is_offer: false },
-        { store_id: 2, price: parseFloat(olimpicaPrice), previous_price: parseFloat(olimpicaPrice), is_offer: false }
-      ]
-    };
-
-    if (editingId) {
-      await onUpdateProduct(editingId, productPayload);
-    } else {
-      await onAddProduct(productPayload);
+    const { payload, error } = buildProductPayload(form, stores);
+    if (error) {
+      setFeedback({ type: 'error', text: error });
+      return;
     }
-    handleResetForm();
+    const saved = await runAction(() => (editingId ? onUpdateProduct(editingId, payload) : onAddProduct(payload)));
+    if (saved) resetForm();
+  };
+
+  const handleConfirmDelete = async () => {
+    const product = confirmingProduct;
+    setConfirmingProduct(null);
+    const deleted = await runAction(() => onDeleteProduct(product.id));
+    if (deleted && editingId === product.id) resetForm();
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: '840px' }} onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>
+      <div className="modal-content" style={{ maxWidth: '900px' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Panel de administración">
+        <button className="modal-close" onClick={onClose} aria-label="Cerrar">
           <X size={20} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
           <Shield size={24} color="#6366f1" />
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 800 }}>
-            Panel de Administración de Catálogo (Popayán)
+            Panel de Administración de Catálogo
           </h2>
         </div>
 
+        {feedback && (
+          <div role={feedback.type === 'error' ? 'alert' : 'status'} style={{
+            marginBottom: '1rem', padding: '0.6rem 0.9rem', borderRadius: '8px', fontSize: '0.87rem', fontWeight: 600,
+            background: feedback.type === 'error' ? '#fef2f2' : '#ecfdf5',
+            border: `1px solid ${feedback.type === 'error' ? '#fecaca' : '#a7f3d0'}`,
+            color: feedback.type === 'error' ? '#dc2626' : '#047857'
+          }}>
+            {feedback.text}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-          
-          {/* Form */}
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '14px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.85rem', color: '#334155' }}>
               {editingId ? '✏️ Editar Producto' : '➕ Agregar Nuevo Producto'}
             </h3>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' }}>Nombre del Producto</label>
-                <input 
-                  type="text" 
-                  className="search-input" 
-                  style={{ borderRadius: '8px', paddingLeft: '0.8rem' }} 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  required 
-                />
+                <label htmlFor="admin-name" style={labelStyle}>Nombre del Producto *</label>
+                <input id="admin-name" type="text" className="search-input" style={fieldStyle} value={form.name} onChange={(e) => updateField('name', e.target.value)} maxLength={255} />
+              </div>
+
+              <div>
+                <label htmlFor="admin-description" style={labelStyle}>Descripción</label>
+                <textarea id="admin-description" className="search-input" style={{ ...fieldStyle, minHeight: '56px', resize: 'vertical' }} value={form.description} onChange={(e) => updateField('description', e.target.value)} maxLength={2000} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' }}>Categoría</label>
-                  <select 
-                    className="search-input" 
-                    style={{ borderRadius: '8px', paddingLeft: '0.8rem' }}
-                    value={categoryId} 
-                    onChange={(e) => setCategoryId(e.target.value)}
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-                    ))}
+                  <label htmlFor="admin-category" style={labelStyle}>Categoría *</label>
+                  <select id="admin-category" className="search-input" style={fieldStyle} value={form.category_id} onChange={(e) => updateField('category_id', e.target.value)}>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' }}>Presentación / Unidad</label>
-                  <input 
-                    type="text" 
-                    className="search-input" 
-                    style={{ borderRadius: '8px', paddingLeft: '0.8rem' }} 
-                    value={unit} 
-                    onChange={(e) => setUnit(e.target.value)} 
-                    placeholder="Ej: Bolsa 1 kg"
-                    required 
-                  />
+                  <label htmlFor="admin-unit" style={labelStyle}>Presentación / Unidad</label>
+                  <input id="admin-unit" type="text" className="search-input" style={fieldStyle} value={form.unit} onChange={(e) => updateField('unit', e.target.value)} placeholder="Ej: Bolsa 1 kg" />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' }}>Precio Tiendas D1 ($ COP)</label>
-                  <input 
-                    type="number" 
-                    className="search-input" 
-                    style={{ borderRadius: '8px', paddingLeft: '0.8rem' }} 
-                    value={d1Price} 
-                    onChange={(e) => setD1Price(e.target.value)} 
-                    required 
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' }}>Precio Olímpica ($ COP)</label>
-                  <input 
-                    type="number" 
-                    className="search-input" 
-                    style={{ borderRadius: '8px', paddingLeft: '0.8rem' }} 
-                    value={olimpicaPrice} 
-                    onChange={(e) => setOlimpicaPrice(e.target.value)} 
-                    required 
-                  />
-                </div>
-              </div>
+              <fieldset style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <legend style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', padding: '0 0.3rem' }}>Precio por tienda * (deja vacío si no se vende)</legend>
+                {stores.map(store => {
+                  const entry = form.prices[store.id] || { price: '', is_offer: false, previous_price: '' };
+                  return (
+                    <div key={store.id}>
+                      <label htmlFor={`admin-price-${store.id}`} style={labelStyle}>{store.logo} {store.name} ($ COP)</label>
+                      <input id={`admin-price-${store.id}`} type="number" min="0" step="1" className="search-input" style={fieldStyle} value={entry.price} onChange={(e) => updatePrice(store.id, { price: e.target.value })} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', marginTop: '0.3rem', color: '#475569' }}>
+                        <input type="checkbox" checked={entry.is_offer} onChange={(e) => updatePrice(store.id, { is_offer: e.target.checked })} />
+                        En oferta
+                      </label>
+                      {entry.is_offer && (
+                        <input type="number" min="0" step="1" className="search-input" style={{ ...fieldStyle, marginTop: '0.3rem' }} placeholder="Precio anterior ($ COP)" aria-label={`Precio anterior en ${store.name}`} value={entry.previous_price} onChange={(e) => updatePrice(store.id, { previous_price: e.target.value })} />
+                      )}
+                    </div>
+                  );
+                })}
+              </fieldset>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.2rem' }}>URL de Imagen</label>
-                <input 
-                  type="url" 
-                  className="search-input" 
-                  style={{ borderRadius: '8px', paddingLeft: '0.8rem' }} 
-                  placeholder="https://..."
-                  value={imageUrl} 
-                  onChange={(e) => setImageUrl(e.target.value)} 
-                />
+                <label htmlFor="admin-image" style={labelStyle}>URL de Imagen</label>
+                <input id="admin-image" type="url" className="search-input" style={fieldStyle} placeholder="https://..." value={form.image_url} onChange={(e) => updateField('image_url', e.target.value)} />
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="submit" className="nav-btn nav-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                <button type="submit" disabled={busy} className="nav-btn nav-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                   <Check size={16} /> {editingId ? 'Guardar Cambios' : 'Crear Producto'}
                 </button>
-
                 {editingId && (
-                  <button type="button" onClick={handleResetForm} className="nav-btn" style={{ background: '#e2e8f0' }}>
+                  <button type="button" onClick={resetForm} className="nav-btn" style={{ background: '#e2e8f0' }}>
                     Cancelar
                   </button>
                 )}
@@ -185,38 +189,61 @@ export default function AdminPanel({
             </form>
           </div>
 
-          {/* Product list for management */}
-          <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.85rem', color: '#334155' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.6rem', color: '#334155' }}>
               📦 Productos en Catálogo ({products.length})
             </h3>
+            <input type="search" className="search-input" style={{ ...fieldStyle, marginBottom: '0.6rem' }} placeholder="Buscar producto para editar o eliminar..." aria-label="Buscar producto" value={filter} onChange={(e) => setFilter(e.target.value)} />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {products.map(p => (
-                <div key={p.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.65rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <img src={p.image_url} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px' }} />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{p.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.unit}</div>
+            <div style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {visibleProducts.items.length === 0 && (
+                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>No hay productos que coincidan.</p>
+              )}
+              {visibleProducts.items.map(p => (
+                <div key={p.id} style={{ background: editingId === p.id ? '#eef2ff' : 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.6rem 0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                    <img src={p.image_url} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                        {p.unit} · {p.prices.map(price => formatCop(price.price)).join(' / ')}
+                      </div>
                     </div>
                   </div>
-
-                  <div style={{ display: 'flex', gap: '0.3rem' }}>
-                    <button className="nav-btn" style={{ padding: '0.3rem', color: '#6366f1' }} onClick={() => handleStartEdit(p)} title="Editar">
+                  <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                    <button className="nav-btn" style={{ padding: '0.3rem', color: '#6366f1' }} onClick={() => startEdit(p)} title="Editar" aria-label={`Editar ${p.name}`}>
                       <Edit3 size={16} />
                     </button>
-                    <button className="nav-btn" style={{ padding: '0.3rem', color: '#ef4444' }} onClick={() => onDeleteProduct(p.id)} title="Eliminar">
+                    <button className="nav-btn" style={{ padding: '0.3rem', color: '#ef4444' }} onClick={() => setConfirmingProduct(p)} title="Eliminar" aria-label={`Eliminar ${p.name}`}>
                       <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
               ))}
+              {visibleProducts.total > LIST_LIMIT && (
+                <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Mostrando {LIST_LIMIT} de {visibleProducts.total}. Usa el buscador para encontrar otros productos.
+                </p>
+              )}
             </div>
           </div>
-
         </div>
 
+        {confirmingProduct && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setConfirmingProduct(null)}>
+            <div role="alertdialog" aria-modal="true" aria-label="Confirmar eliminación" onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '1.4rem', maxWidth: '400px', width: '100%', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626', fontWeight: 800, marginBottom: '0.5rem' }}>
+                <AlertTriangle size={20} /> ¿Eliminar este producto?
+              </div>
+              <p style={{ fontSize: '0.9rem', color: '#334155', marginBottom: '0.3rem' }}><strong>{confirmingProduct.name}</strong></p>
+              <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1rem' }}>Se eliminará del catálogo junto con sus reseñas y favoritos. Esta acción no se puede deshacer.</p>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button className="nav-btn" style={{ background: '#e2e8f0' }} onClick={() => setConfirmingProduct(null)}>Cancelar</button>
+                <button className="nav-btn" style={{ background: '#dc2626', color: 'white' }} onClick={handleConfirmDelete}>Sí, eliminar</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

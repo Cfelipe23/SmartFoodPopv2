@@ -1,31 +1,30 @@
-// Filtrado del catálogo (RF03, RF04, RF08, RF09, RF10)
-export function filterProducts({ products, categories, stores, favorites, searchTerm, selectedCategory, selectedStore, activeTab }) {
-  return products.filter(product => {
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      const matchName = product.name.toLowerCase().includes(q);
-      const matchDesc = (product.description || '').toLowerCase().includes(q);
-      if (!matchName && !matchDesc) return false;
-    }
+import { bestDiscount } from './format.js';
+import { isComparable } from './comparison.js';
 
-    if (selectedCategory !== 'all') {
-      const catObj = categories.find(c => c.slug === selectedCategory || c.id === parseInt(selectedCategory));
-      if (catObj && product.category_id !== catObj.id) return false;
-    }
+function normalizeText(value) {
+  return String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
 
-    if (selectedStore !== 'all') {
-      const storeObj = stores.find(s => s.code === selectedStore || s.id === parseInt(selectedStore));
-      if (storeObj && !product.prices.some(pr => pr.store_id === storeObj.id)) return false;
-    }
+// Filtrado del catálogo (RF04 búsqueda, RF08 ofertas, RF09 tienda/categoría, RF10 guardados).
+// La búsqueda ignora tildes y mayúsculas ("frijol" encuentra "Fríjol").
+export function filterProducts({ products, categories, stores, favorites, searchTerm, selectedCategory, selectedStore, activeTab, onlyComparable = false }) {
+  const query = normalizeText(searchTerm);
+  const category = selectedCategory !== 'all' ? categories.find(c => c.slug === selectedCategory || c.id === Number(selectedCategory)) : null;
+  const store = selectedStore !== 'all' ? stores.find(s => s.code === selectedStore || s.id === Number(selectedStore)) : null;
 
-    if (activeTab === 'offers') {
-      if (!product.prices.some(p => p.is_offer)) return false;
-    }
-
-    if (activeTab === 'favorites') {
-      if (!favorites.includes(product.id)) return false;
-    }
-
+  const result = products.filter(product => {
+    if (query && !normalizeText(`${product.name} ${product.description || ''}`).includes(query)) return false;
+    if (category && product.category_id !== category.id) return false;
+    if (store && !(product.prices || []).some(price => price.store_id === store.id)) return false;
+    if (onlyComparable && !isComparable(product)) return false;
+    if (activeTab === 'offers' && !(product.prices || []).some(price => price.is_offer)) return false;
+    if (activeTab === 'favorites' && !favorites.includes(product.id)) return false;
     return true;
   });
+
+  // En ofertas se muestran primero las de mayor descuento.
+  if (activeTab === 'offers') {
+    return [...result].sort((a, b) => bestDiscount(b.prices) - bestDiscount(a.prices));
+  }
+  return result;
 }
