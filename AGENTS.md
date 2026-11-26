@@ -125,6 +125,8 @@ En desarrollo, el backend compila y vigila `src/`, y Node reinicia el servidor c
 
 El scraper necesita `python -m pip install -r scraper/requirements.txt`.
 
+En un clon limpio, `npm --prefix backend ci` y `npm --prefix frontend ci` instalan desde los dos lockfiles versionados. Para usar el catálogo incluido y arrancar en memoria sin configurar PostgreSQL, omite `db:setup` y usa `npm run dev -- --no-scrape` sin variables de conexión. En Windows, `start.bat --no-scrape` omite el scraper y todavía intenta configurar PostgreSQL si falta `backend/.env`.
+
 ### 3.0 En un equipo nuevo (Windows): `git clone` + `start.bat`
 
 **Requisitos:** [Node.js](https://nodejs.org) 20.19 o superior (LTS). Recomendados: [PostgreSQL](https://www.postgresql.org/download/) encendido y [Python](https://www.python.org) 3.10 o superior.
@@ -408,6 +410,16 @@ Migración de componentes (26-nov-2026) · Frontend 23/23 y backend 64/64 en Win
 
 Chrome con un perfil temporal verificó el catálogo, los filtros, las ofertas, el detalle comparativo, el registro, el inicio y el cierre de sesión, la caducidad del token, las reseñas, los favoritos y las operaciones administrativas. No registró errores de JavaScript. Las capturas de escritorio coincidieron y el tamaño del contenido móvil fue el mismo antes y después.
 
+Estabilización (26-nov-2026) · Desde un clon limpio se instalaron ambos proyectos con `npm ci` y pasaron typecheck, build, Oxlint y las suites de backend y frontend con Node.js 20.19.0 y 24.14.0. Backend 64/64 · frontend 28/28 · scraper 19/19 con Python 3.12.12 y 3.13.15, usando respuestas simuladas. El JSON versionado pasó la comprobación de `price`, `original_price`, `sku_id` y las dos tiendas. El bundle de producción se comprobó sin dependencias del servidor ni credenciales de demostración.
+
+En Windows se comprobó el arranque con `npm --prefix backend start`, `node run-dev.js --no-scrape`, `npm run dev -- --no-scrape`, `npm start -- --no-scrape` y `start.bat --no-scrape`. También se ejecutó `start.bat` con un sustituto local del scraper que reescribió la muestra temporal sin red. `db:setup` y `db:check` apuntaron a PostgreSQL 18.6 temporal en loopback. La salida de los modos con coordinador requirió cerrar procesos hijos al inyectar la señal en el coordinador.
+
+En otro clon vacío, `start.bat --no-scrape` detectó e instaló las dependencias y arrancó la API en memoria y Vite. Su llamada a `npm install` regeneró seis entradas de metadatos de plataforma del lockfile del frontend. `npm ci` conservó los dos lockfiles comprometidos.
+
+La integración de Chrome y PostgreSQL 18.6 verificó las siete tablas, la persistencia del registro, la reseña, los favoritos y la administración, y el rollback al violar una clave foránea. Una actualización del catálogo conservó identificadores y precios de Olímpica cuando faltó esa tienda en la muestra. Tras reiniciar PostgreSQL y Express, Chrome recuperó la sesión y los guardados. Con `StrictMode` activo se verificaron escrituras tardías entre sesiones y al volver a la misma cuenta, el detalle fuera de orden y una respuesta de detalle con formato inesperado.
+
+La auditoría de los dos lockfiles con `npm audit` y la de los requisitos del scraper con `pip-audit` no reportaron avisos en estas ejecuciones.
+
 ### 8.3 Aceptación manual en el navegador (no automatizada)
 
 1. La portada muestra tarjetas con nombre, precio y tienda, y **no** aparece el aviso amarillo de base de datos.
@@ -466,6 +478,9 @@ Chrome con un perfil temporal verificó el catálogo, los filtros, las ofertas, 
 - **Vigencia:** los precios son los del último scraping (campo `scraped_at` del JSON). No se garantiza que estén disponibles en la tienda física (excluido del alcance).
 - **Una sola instancia del backend:** las escrituras se encolan desde la memoria del proceso.
 - En la prueba de Chrome con una pantalla móvil de 390 px, el contenido ocupa 398 px tanto en la versión JSX como en la versión TSX.
+- En Windows, al señalar solo el proceso coordinador con `SIGINT`, se observó que el backend seguía respondiendo hasta que el entorno de prueba terminó sus procesos hijos. Queda pendiente comprobar el comportamiento de `Ctrl+C` en una consola interactiva.
+- Antes de publicar, revisa el historial de `scraper/cookies/d1_popayan.json` y `scraper/cookies/olimpica_popayan.json`. Los dos están excluidos del árbol actual y aparecen en commits anteriores. Si alguna sesión sigue vigente, invalídala o renuévala antes de coordinar la retirada del historial.
+- El arranque del backend conserva un secreto JWT de respaldo para desarrollo y las cuentas de demostración usan contraseñas conocidas cuando el entorno no proporciona valores. Antes de exponer una instancia, configura su propio `JWT_SECRET`, sustituye las credenciales de las cuentas demo y verifica las cuentas que ya existan en la base.
 - **Direcciones de las tiendas** en `data/initialData.ts`. Son de referencia y deben verificarse antes de presentarlas como reales.
 - **Comparación por peso frente a unidad:** algunos productos que se venden por peso en una tienda y por unidad en la otra (p. ej. *Aguacate Hass Unidad*) dan diferencias de precio enormes.
 - **Inconsistencias del documento de alcance** (por corregir en el documento, no en el código): las fichas HU tienen vacío «Requerimiento asociado» y sin marcar la prioridad; el título de RF10 está repetido; HU11 falta en la sección 13; la numeración de criterios es irregular en HU01 y HU11; los sprints de HU07, HU09 y HU11 y los puntos de HU11 difieren entre la ficha, la matriz y el backlog; RF04 dice «buscar y filtrar» en la priorización; RF06 dice «aplicación» en lugar de «publicación».
