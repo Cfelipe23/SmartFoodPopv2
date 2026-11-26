@@ -1,0 +1,5 @@
+# Los .bat deben tener fin de linea de Windows (CRLF) o cmd puede fallar con goto/labels
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# Scripts de shell siempre con LF
+*.sh text eol=lf

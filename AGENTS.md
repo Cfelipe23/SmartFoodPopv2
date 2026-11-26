@@ -117,7 +117,27 @@ npm run dev                             # backend :5000 + frontend (Vite) + scra
 npm run dev -- --no-scrape              # igual, sin actualizar precios (rápido, sin internet)
 ```
 
-En Windows también sirve `start.bat`. El scraper necesita `pip install requests`.
+El scraper necesita `python -m pip install -r scraper/requirements.txt`.
+
+### 3.0 En un equipo nuevo (Windows): `git clone` + `start.bat`
+
+**Requisitos:** [Node.js](https://nodejs.org) 20.19 o superior (LTS). Recomendados: [PostgreSQL](https://www.postgresql.org/download/) encendido y [Python](https://www.python.org) 3.10 o superior.
+
+```bat
+git clone <url-del-repo>
+cd SmartFoodPopp-main
+start.bat
+```
+
+`start.bat` (también con doble clic) prepara todo y arranca:
+
+1. Comprueba Node.js y su versión.
+2. Instala las dependencias de `backend` y `frontend` si falta `node_modules`.
+3. Si hay Python, instala `scraper/requirements.txt` cuando falte `requests`. Sin Python, la app usa los precios guardados.
+4. Si no existe `backend/.env`, pregunta si configurar PostgreSQL (`db:setup`: pide la clave del usuario `postgres`, crea la base y el `.env`). Si se responde «N» o falla, la app arranca **en memoria**.
+5. Ejecuta `node run-dev.js`, que levanta el backend en `:5000`, el frontend en la URL «Local» que muestra Vite (normalmente `:5173`) y el scraper en segundo plano. Acepta los mismos argumentos (`start.bat --no-scrape`).
+
+Lo que viene en el repositorio basta para funcionar sin internet: `scraper/output/scraped_products_api.json` trae el último catálogo. Lo que **no** viene, y se genera en cada equipo: `node_modules/`, `backend/.env` y `scraper/cookies/` (las crea el scraper). Verificado con un clon limpio el 25-nov-2026.
 
 ### 3.1 Variables de entorno (`backend/.env`, plantilla en `backend/.env.example`)
 
