@@ -2,12 +2,14 @@
   "name": "smartfoodpop-backend",
   "version": "1.0.0",
   "description": "Backend API for SmartFoodPop web application",
-  "main": "src/server.js",
+  "main": "dist/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test",
+    "start": "node --enable-source-maps dist/server.js",
+    "dev": "node scripts/dev.js",
+    "build": "tsc -p tsconfig.json && node scripts/copy-schema.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test",
     "db:check": "node scripts/check-db.js",
     "db:setup": "node scripts/setup-db.js"
   },
@@ -20,6 +22,8 @@
     "pg": "^8.11.5"
   },
   "devDependencies": {
-    "pg-mem": "^3.0.14"
+    "@types/node": "20.19.43",
+    "pg-mem": "^3.0.14",
+    "typescript": "5.9.3"
   }
 }

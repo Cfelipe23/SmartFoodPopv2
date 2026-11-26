@@ -32,7 +32,7 @@
 
 ### 1.2 Stack permitido (restricción 7.1 del alcance)
 
-React + JavaScript (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · GitHub. Cualquier dependencia o tecnología nueva requiere justificarla y que el equipo la apruebe.
+React (Vite) · Node.js + Express · PostgreSQL · Python para el scraping · GitHub. El equipo aprobó TypeScript para el backend y el frontend el 26-nov-2026. La migración empieza por el backend y el frontend sigue en JavaScript hasta su etapa. Esta decisión actualiza el stack de trabajo respecto a la sección 7.1 del alcance original. Cualquier otra dependencia o tecnología nueva requiere justificarla y que el equipo la apruebe.
 
 ### 1.3 Principios
 
@@ -80,6 +80,7 @@ Cada uno corrige un defecto real que ya ocurrió (ver la sección 8.4).
 
 ```bash
 npm test                                       # backend + frontend
+npm --prefix backend run typecheck             # verificación de tipos del backend
 npm run lint && npm run build                  # frontend
 cd scraper && python -m unittest discover -s tests   # si tocaste el scraper
 ```
@@ -101,7 +102,7 @@ Aplicación web que centraliza productos, precios, ofertas y reseñas de **Tiend
 | Capa | Tecnología |
 |---|---|
 | Frontend | React 19 + JavaScript (Vite), `lucide-react` para los iconos |
-| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg` |
+| Backend | Node.js 20+ + Express, JWT, bcryptjs, `pg`. Compilación CommonJS con TypeScript y fuentes JavaScript en la primera etapa. |
 | Base de datos | PostgreSQL (en memoria si no está configurada; solo para desarrollo) |
 | Scraping | Python 3.10+ con `requests` contra la API de VTEX de cada tienda |
 
@@ -115,7 +116,11 @@ npm run db:setup                        # crea la base "smartfoodpop" y escribe 
 npm run db:check                        # ✔ Conectado a la base "smartfoodpop"
 npm run dev                             # backend :5000 + frontend (Vite) + scraper en segundo plano
 npm run dev -- --no-scrape              # igual, sin actualizar precios (rápido, sin internet)
+npm --prefix backend run build         # compila src/ a dist/ y copia el esquema SQL
+npm --prefix backend start             # ejecuta el backend compilado
 ```
+
+En desarrollo, el backend compila y vigila `src/`, y Node reinicia el servidor cuando cambia el código compilado. `dist/` conserva la estructura de `src/` y lleva `data/schema.sql`. El backend compilado busca `.env` en `backend/` y sigue leyendo el JSON del scraper desde su ubicación original o desde `SCRAPED_PRODUCTS_PATH`. Si se modifica el SQL durante el desarrollo, reinicia el comando de desarrollo para volver a copiarlo.
 
 El scraper necesita `python -m pip install -r scraper/requirements.txt`.
 
@@ -132,7 +137,7 @@ start.bat
 `start.bat` (también con doble clic) prepara todo y arranca:
 
 1. Comprueba Node.js y su versión.
-2. Instala las dependencias de `backend` y `frontend` si falta `node_modules`.
+2. Instala las dependencias del backend si falta el compilador TypeScript y las del frontend si falta su carpeta `node_modules`.
 3. Si hay Python, instala `scraper/requirements.txt` cuando falte `requests`. Sin Python, la app usa los precios guardados.
 4. Si no existe `backend/.env`, configura PostgreSQL **automáticamente** (`npm run db:setup`): busca el servidor en los puertos 5432–5434 y pide **una sola vez** la contraseña del usuario `postgres`, la que se eligió al instalar PostgreSQL. Esa clave no se puede automatizar porque solo la conoce quien lo instaló. Admite 3 intentos; luego crea la base `smartfoodpop` y escribe `backend/.env`, que no se sube a git. Las tablas y el catálogo los crea el backend al arrancar. Si PostgreSQL no está instalado o está apagado (detecta el servicio de Windows y explica cómo iniciarlo), la app arranca **en memoria** y en el siguiente arranque lo vuelve a intentar.
 5. Ejecuta `node run-dev.js`, que levanta el backend en `:5000`, el frontend en la URL «Local» que muestra Vite (normalmente `:5173`) y el scraper en segundo plano. Acepta los mismos argumentos (`start.bat --no-scrape`).
@@ -360,7 +365,9 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 | Persistencia | `node:test` + `pg-mem` (verificado también contra PostgreSQL 16 y 18 reales) | `backend/tests/postgres.test.js` |
 | Frontend (filtros, comparación, formato, validación del administrador) | `node:test` | `frontend/src/utils/*.test.js` |
 | Scraper (contrato, paginación, reintentos, categorías, búsquedas, URL) | `unittest` | `scraper/tests/` |
-| Estáticas | `oxlint`, `vite build` | `npm run lint`, `npm run build` |
+| Estáticas | `tsc`, `oxlint`, `vite build` | `npm --prefix backend run typecheck`, `npm run lint`, `npm run build` |
+
+Las pruebas del backend ejecutan el código compilado en `dist/`. Las de persistencia usan `pg-mem`.
 
 ### 8.2 Última ejecución (25-nov-2026)
 
@@ -407,6 +414,7 @@ Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build cor
 
 | Decisión | Motivo | Alcance |
 |---|---|---|
+| 26-nov-2026 · Migrar a TypeScript, primero el backend · Aprobada | Incorporar tipado estricto de forma gradual y mantener CommonJS durante la migración del backend | 7.1 |
 | Catálogo en memoria con escritura diferida a PostgreSQL | Lecturas rápidas y servicios simples; basta con una instancia (proyecto académico) | 7.1 |
 | Emparejar por contenido neto y similitud de nombre; equivalentes por kg/L | Comparar sin mezclar presentaciones distintas | RF07 |
 | El catálogo público solo muestra productos comparables | El propósito es comparar entre tiendas | 2.4, RF07 |

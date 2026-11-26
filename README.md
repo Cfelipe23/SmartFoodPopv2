@@ -86,8 +86,10 @@ start.bat --no-scrape        # o: npm run dev -- --no-scrape
 
 ```bash
 npm test                                            # backend y frontend
+npm --prefix backend run typecheck                   # comprobación de tipos del backend
+npm --prefix backend run build                       # compila el backend a backend/dist/
 npm run lint                                        # análisis estático del frontend
-npm run build                                       # compilación de producción
+npm run build                                       # compilación de producción del frontend
 cd scraper && python -m unittest discover -s tests  # scraper
 ```
 

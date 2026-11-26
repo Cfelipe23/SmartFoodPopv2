@@ -4,12 +4,12 @@ const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { newDb } = require('pg-mem');
-const { toProductPageUrl, productUrlKey } = require('../src/domain/productUrl');
-const { mergeCatalog } = require('../src/domain/catalogRefresh');
-const { buildCatalogCards } = require('../src/domain/catalogBuilder');
-const { PostgresPersistence } = require('../src/data/PostgresPersistence');
-const { bootstrapContainer, buildContainer } = require('../src/container');
-const { createInMemoryStore } = require('../src/data/inMemoryStore');
+const { toProductPageUrl, productUrlKey } = require('../dist/domain/productUrl');
+const { mergeCatalog } = require('../dist/domain/catalogRefresh');
+const { buildCatalogCards } = require('../dist/domain/catalogBuilder');
+const { PostgresPersistence } = require('../dist/data/PostgresPersistence');
+const { bootstrapContainer, buildContainer } = require('../dist/container');
+const { createInMemoryStore } = require('../dist/data/inMemoryStore');
 
 const quietLogger = { log() {}, warn() {} };
 const D1 = 'https://www.d1.com.co';
@@ -87,7 +87,7 @@ test('actualización de precios: si dos fichas pasan a ser el mismo producto, re
 });
 
 test('PostgreSQL: al reiniciar se aplican los precios nuevos del scraper sin perder reseñas ni favoritos', async () => {
-  const schemaSql = fs.readFileSync(path.join(__dirname, '../src/data/schema.sql'), 'utf8').replace(/DECIMAL\(\d+,\s*\d+\)/g, 'DECIMAL');
+  const schemaSql = fs.readFileSync(path.join(__dirname, '../dist/data/schema.sql'), 'utf8').replace(/DECIMAL\(\d+,\s*\d+\)/g, 'DECIMAL');
   const { Pool } = newDb().adapters.createPg();
   const persistence = new PostgresPersistence(new Pool(), { logger: { log() {}, error: console.error }, schemaSql });
 

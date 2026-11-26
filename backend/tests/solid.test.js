@@ -1,19 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createInMemoryStore } = require('../src/data/inMemoryStore');
-const ProductRepository = require('../src/repositories/ProductRepository');
-const CatalogRepository = require('../src/repositories/CatalogRepository');
-const UserRepository = require('../src/repositories/UserRepository');
-const ReviewRepository = require('../src/repositories/ReviewRepository');
-const FavoriteRepository = require('../src/repositories/FavoriteRepository');
-const ProductService = require('../src/services/ProductService');
-const { ProductDetailService, summarizeReviews } = require('../src/services/ProductDetailService');
-const ProductComparisonService = require('../src/services/ProductComparisonService');
-const ProductAdminService = require('../src/services/ProductAdminService');
-const { searchFilter, defaultProductFilters, applyFilters } = require('../src/domain/productFilters');
-const { AuthService, AuthError } = require('../src/services/AuthService');
-const TokenService = require('../src/services/TokenService');
-const { BcryptPasswordHasher } = require('../src/services/PasswordHasher');
+const { createInMemoryStore } = require('../dist/data/inMemoryStore');
+const ProductRepository = require('../dist/repositories/ProductRepository');
+const CatalogRepository = require('../dist/repositories/CatalogRepository');
+const UserRepository = require('../dist/repositories/UserRepository');
+const ReviewRepository = require('../dist/repositories/ReviewRepository');
+const FavoriteRepository = require('../dist/repositories/FavoriteRepository');
+const ProductService = require('../dist/services/ProductService');
+const { ProductDetailService, summarizeReviews } = require('../dist/services/ProductDetailService');
+const ProductComparisonService = require('../dist/services/ProductComparisonService');
+const ProductAdminService = require('../dist/services/ProductAdminService');
+const { searchFilter, defaultProductFilters, applyFilters } = require('../dist/domain/productFilters');
+const { AuthService, AuthError } = require('../dist/services/AuthService');
+const TokenService = require('../dist/services/TokenService');
+const { BcryptPasswordHasher } = require('../dist/services/PasswordHasher');
 
 function setup() {
   const store = createInMemoryStore();
@@ -88,7 +88,7 @@ test('RF01: duplicate email is rejected and AuthError is exported both ways', as
   const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });
   await service.register({ name: 'Uno', email: 'dup@example.com', password: 'secret123' });
   await assert.rejects(() => service.register({ name: 'Dos', email: 'DUP@example.com', password: 'secret123' }), error => error instanceof AuthError && error.status === 409);
-  assert.equal(require('../src/services/AuthError'), require('../src/services/AuthError').AuthError);
+  assert.equal(require('../dist/services/AuthError'), require('../dist/services/AuthError').AuthError);
 });
 test('RF01: invalid email and short password are rejected', async () => {
   const d = setup(); const service = new AuthService({ userRepository: d.userRepository, passwordHasher: new BcryptPasswordHasher(), tokenService: new TokenService({ secret: 'test-secret' }) });

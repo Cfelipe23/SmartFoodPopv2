@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildEquivalenceIndex, computeUnitPrice, analysisOf } = require('../src/domain/productEquivalence');
-const { analyzeName } = require('../src/domain/productNormalizer');
+const { buildEquivalenceIndex, computeUnitPrice, analysisOf } = require('../dist/domain/productEquivalence');
+const { analyzeName } = require('../dist/domain/productNormalizer');
 
 const item = (id, name, store_id, price) => ({ id, name, description: '', category_id: 1, unit: '', image_url: '', prices: [{ store_id, price, previous_price: price, is_offer: false }] });
 

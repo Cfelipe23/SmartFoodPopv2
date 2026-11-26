@@ -21,8 +21,8 @@ if errorlevel 1 (
   goto :fin
 )
 
-rem --- 2. Dependencias de Node (solo la primera vez) ---
-if not exist "backend\node_modules" (
+rem --- 2. Dependencias de Node (incluye clones anteriores a TypeScript) ---
+if not exist "backend\node_modules\typescript\bin\tsc" (
   echo Instalando dependencias del backend...
   call npm --prefix backend install
   if errorlevel 1 goto :error_npm

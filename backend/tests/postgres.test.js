@@ -3,13 +3,13 @@ const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { newDb } = require('pg-mem');
-const { PostgresPersistence } = require('../src/data/PostgresPersistence');
-const { bootstrapContainer, buildContainer } = require('../src/container');
-const { createInMemoryStore } = require('../src/data/inMemoryStore');
+const { PostgresPersistence } = require('../dist/data/PostgresPersistence');
+const { bootstrapContainer, buildContainer } = require('../dist/container');
+const { createInMemoryStore } = require('../dist/data/inMemoryStore');
 
 // PostgreSQL emulado en memoria: valida el esquema SQL y las consultas sin depender de un servidor externo.
 // pg-mem no soporta la precisión de DECIMAL(p, s); el resto del esquema real se usa tal cual.
-const schemaSql = fs.readFileSync(path.join(__dirname, '../src/data/schema.sql'), 'utf8').replace(/DECIMAL\(\d+,\s*\d+\)/g, 'DECIMAL');
+const schemaSql = fs.readFileSync(path.join(__dirname, '../dist/data/schema.sql'), 'utf8').replace(/DECIMAL\(\d+,\s*\d+\)/g, 'DECIMAL');
 function createPersistence(logger = { log() {}, error: console.error }) {
   const { Pool } = newDb().adapters.createPg();
   return new PostgresPersistence(new Pool(), { logger, schemaSql });

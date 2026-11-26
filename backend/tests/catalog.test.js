@@ -1,13 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyzeName, extractSize, normalizeName } = require('../src/domain/productNormalizer');
-const { classifyCategory, CATEGORY } = require('../src/domain/productClassifier');
-const { buildCatalogCards, describeOffer } = require('../src/domain/catalogBuilder');
-const { ProductDetailService, computeUnitPrice } = require('../src/services/ProductDetailService');
-const { createInMemoryStore } = require('../src/data/inMemoryStore');
-const ProductRepository = require('../src/repositories/ProductRepository');
-const CatalogRepository = require('../src/repositories/CatalogRepository');
-const ReviewRepository = require('../src/repositories/ReviewRepository');
+const { analyzeName, extractSize, normalizeName } = require('../dist/domain/productNormalizer');
+const { classifyCategory, CATEGORY } = require('../dist/domain/productClassifier');
+const { buildCatalogCards, describeOffer } = require('../dist/domain/catalogBuilder');
+const { ProductDetailService, computeUnitPrice } = require('../dist/services/ProductDetailService');
+const { createInMemoryStore } = require('../dist/data/inMemoryStore');
+const ProductRepository = require('../dist/repositories/ProductRepository');
+const CatalogRepository = require('../dist/repositories/CatalogRepository');
+const ReviewRepository = require('../dist/repositories/ReviewRepository');
 
 const raw = (name, store, price, extra = {}) => ({ name, store, price, original_price: price, is_offer: false, image_url: '', sku_id: `${store}-${name}`, ...extra });
 

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildContainer } = require('../src/container');
-const { createApp } = require('../src/app');
+const { buildContainer } = require('../dist/container');
+const { createApp } = require('../dist/app');
 
 // Pruebas de integración: servidor Express real en un puerto efímero, sin proceso externo.
 async function startApi() {
