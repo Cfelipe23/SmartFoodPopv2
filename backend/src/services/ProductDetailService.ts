@@ -1,4 +1,5 @@
 import type { DetailPrice, ProductDetailResponse, SimilarProduct } from '../contracts/api';
+import type { PricePresenter } from './pricePresenter';
 import type { Product, Review } from '../domain/entities';
 import { jaccard } from '../domain/productNormalizer';
 import { analysisOf, computeUnitPrice } from '../domain/productEquivalence';
@@ -7,6 +8,7 @@ import type ProductRepository = require('../repositories/ProductRepository');
 import type ReviewRepository = require('../repositories/ReviewRepository');
 
 interface DetailOptions {
+  detailPrice: PricePresenter<DetailPrice>;
   productRepository: Pick<ProductRepository, 'findAll' | 'findById'>;
   catalogRepository: Pick<CatalogRepository, 'getStores' | 'getCategories'>;
   reviewRepository: Pick<ReviewRepository, 'findByProductId'>;
@@ -21,29 +23,21 @@ export function summarizeReviews(reviews: readonly Pick<Review, 'rating'>[] = []
 }
 
 export class ProductDetailService {
+  private readonly detailPrice: PricePresenter<DetailPrice>;
   readonly productRepository: DetailOptions['productRepository'];
   readonly catalogRepository: DetailOptions['catalogRepository'];
   readonly reviewRepository: DetailOptions['reviewRepository'];
 
-  constructor({ productRepository, catalogRepository, reviewRepository }: DetailOptions) {
+  constructor({ productRepository, catalogRepository, reviewRepository, detailPrice }: DetailOptions) {
+    this.detailPrice = detailPrice;
     this.productRepository = productRepository;
     this.catalogRepository = catalogRepository;
     this.reviewRepository = reviewRepository;
   }
 
   enrichPrices(product: Product): DetailPrice[] {
-    const stores = this.catalogRepository.getStores();
-    const analysis = analysisOf(product);
-    return (product.prices || []).map(price => {
-      const store = stores.find(item => Number(item.id) === Number(price.store_id));
-      return {
-        ...price,
-        store_name: store?.name || 'Tienda',
-        store_logo: store?.logo || '🏬',
-        store_code: store?.code || 'store',
-        unit_price: computeUnitPrice(price.price, analysis)
-      };
-    }).sort((a, b) => Number(a.price) - Number(b.price));
+    return (product.prices || []).map(price => this.detailPrice(product, price))
+      .sort((a, b) => Number(a.price) - Number(b.price));
   }
 
   // Productos parecidos (misma clase de producto y misma unidad de medida) con su precio por kg/L.

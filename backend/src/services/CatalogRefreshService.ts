@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, watchFile, unwatchFile } from 'node:fs';
+import { watchFile, unwatchFile } from 'node:fs';
 import type { Stats } from 'node:fs';
 import type { Persistence } from '../data/persistence';
-import { buildCatalogCards } from '../domain/catalogBuilder';
+import type { ScrapedCatalogSource } from '../data/ScrapedCatalogAdapter';
 import { mergeCatalog } from '../domain/catalogRefresh';
 import type { CatalogRefreshResult, Product } from '../domain/entities';
 import type FavoriteRepository = require('../repositories/FavoriteRepository');
@@ -14,6 +14,7 @@ interface RefreshOptions {
   favoriteRepository: Pick<FavoriteRepository, 'reassignProducts'>;
   persistence: Pick<Persistence, 'syncCatalog'>;
   scrapedPath: string;
+  source: ScrapedCatalogSource;
   logger?: Pick<Console, 'log' | 'warn'>;
 }
 
@@ -25,31 +26,24 @@ class CatalogRefreshService {
   readonly favoriteRepository: RefreshOptions['favoriteRepository'];
   readonly persistence: RefreshOptions['persistence'];
   readonly scrapedPath: string;
+  readonly source: ScrapedCatalogSource;
   readonly logger: Pick<Console, 'log' | 'warn'>;
 
-  constructor({ productRepository, reviewRepository, favoriteRepository, persistence, scrapedPath, logger = console }: RefreshOptions) {
+  constructor({ productRepository, reviewRepository, favoriteRepository, persistence, scrapedPath, source, logger = console }: RefreshOptions) {
     this.productRepository = productRepository;
     this.reviewRepository = reviewRepository;
     this.favoriteRepository = favoriteRepository;
     this.persistence = persistence;
     this.scrapedPath = scrapedPath;
+    this.source = source;
     this.logger = logger;
-  }
-
-  readCards(): Product[] {
-    const items: unknown = JSON.parse(readFileSync(this.scrapedPath, 'utf8'));
-    if (!Array.isArray(items)) throw new Error('el JSON del scraper debe ser una lista');
-    const cards = buildCatalogCards(items);
-    if (!cards.length) throw new Error('el JSON no contiene productos válidos');
-    return cards;
   }
 
   // Devuelve las estadísticas de la actualización, o null si no se pudo leer el JSON.
   refresh(): CatalogRefreshResult | null {
-    if (!this.scrapedPath || !existsSync(this.scrapedPath)) return null;
     let cards: Product[];
     try {
-      cards = this.readCards();
+      cards = this.source.readCards();
     } catch (error) {
       const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : undefined;
       this.logger.warn(`⚠️ [Scraper Data] No se actualizaron los precios: ${message}`);

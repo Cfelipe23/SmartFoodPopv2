@@ -6,6 +6,7 @@ export type ReferenceData = Pick<InMemoryStore, 'stores' | 'categories' | 'users
 
 // Las escrituras devuelven de inmediato. flush espera la cola de persistencia.
 export interface Persistence {
+  readonly storage?: 'memory' | 'postgres';
   saveUser(user: User): void;
   saveReview(review: Review): void;
   addFavorite(favorite: Favorite): void;
@@ -28,6 +29,7 @@ export interface CatalogPersistence extends Persistence {
 // Contrato de persistencia usado por los repositorios. La implementación nula se usa
 // cuando no hay base de datos configurada (modo memoria de desarrollo).
 export class NoopPersistence implements Persistence {
+  readonly storage = 'memory';
   saveUser(_user: User): void {}
   saveReview(_review: Review): void {}
   addFavorite(_favorite: Favorite): void {}

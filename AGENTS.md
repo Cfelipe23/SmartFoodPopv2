@@ -191,6 +191,12 @@ flowchart LR
 
 ### 4.1 Backend (`backend/src`)
 
+En `services/pricePresenter.ts`, los decoradores funcionales `withUnitPrice` y `withStore` enriquecen cada precio para la API. El contenedor compone precio por kg/L para catálogo y ofertas, datos de tienda para comparación y ambos para detalle y similares. Cada servicio conserva el orden de precios de su consulta. Para el equivalente se usa su propia presentación.
+
+El controlador de `/api/products` recibe `CatalogFacade`. El contenedor le inyecta los servicios de listado y ofertas, comparación y detalle. Para el listado y las ofertas, `ProductService` recibe un `EquivalenceIndexProxy` por catálogo. En la primera lectura de cada versión de `ProductRepository`, el proxy delega en `CatalogEquivalenceIndex`, que calcula las equivalencias con `buildEquivalenceIndex`. Las lecturas posteriores de esa versión reutilizan el resultado.
+
+`ProductService` y `ProductComparisonService` aceptan estrategias de filtrado que implementan `ProductFilterStrategy`. `applyFilters` las ejecuta en el orden recibido y `buildEmptyMessage` usa el primer mensaje aplicable. El listado usa búsqueda, categoría, tienda y oferta; la comparación usa las tres primeras.
+
 | Capa | Carpeta | Contenido |
 |---|---|---|
 | Rutas | `routes/` | `auth`, `products`, `reviews`, `favorites`, `admin`. Cada una recibe su controlador y el middleware. |
@@ -206,9 +212,12 @@ flowchart LR
 
 ### 4.2 Persistencia y arranque
 
+Al arrancar, `bootstrapContainer` obtiene la persistencia directamente con `PostgresPersistence.fromEnv(env)`. Si falta la configuración de PostgreSQL, `buildContainer` usa `NoopPersistence` para trabajar en memoria. Las pruebas pueden inyectar la persistencia directamente.
+
 1. `bootstrapContainer` crea el esquema si no existe. Si la base ya tiene catálogo, lo carga en memoria y aplica el JSON más reciente del scraper (actualización incremental). Si es el primer arranque, construye el catálogo desde el JSON y lo guarda.
 2. **Las lecturas** se sirven desde memoria. **Las escrituras** (usuarios, reseñas, favoritos, productos) se encolan en orden hacia PostgreSQL. Por eso hay una sola instancia del backend (sección 10).
 3. `server.ts` carga `backend/.env` antes de evaluar la configuración, vigila el JSON del scraper (`CatalogRefreshService.watch`) y aplica los cambios.
+4. Para RF03, `container.ts` inyecta el mismo `ScrapedCatalogAdapter` en la carga inicial y en `CatalogRefreshService`. Su contrato `ScrapedCatalogSource.readCards()` entrega productos. El adaptador lee el archivo y delega en `buildCatalogCards`, que valida cada registro con `readScraperRecord`.
 
 ### 4.3 Construcción del catálogo (RF03, RF07, RF08)
 
@@ -218,6 +227,7 @@ flowchart LR
 4. `productEquivalence`: para los productos que solo están en una tienda busca el **equivalente** más parecido en la otra (misma unidad de medida, similitud ≥ 0,5) y calcula el precio por kg/L.
 5. `ProductService.list` expone **solo los productos comparables**: primero los idénticos, luego los que tienen equivalente.
 6. `catalogRefresh.mergeCatalog`: reconoce cada producto por la URL de su página en cada tienda; actualiza precios, añade los nuevos y retira los que ya no se publican. No toca los productos creados por el administrador.
+   `CatalogRefreshResultBuilder` reúne los productos conservados, actualizados, creados y retirados. Mantiene el orden de las fichas existentes y añade las nuevas al final. Al retirar una ficha fusionada registra también su identificador de destino para reasignar reseñas y favoritos. Del mismo conjunto de operaciones obtiene los cambios para PostgreSQL y las estadísticas de la actualización.
 
 ### 4.4 Scraper (`scraper/`)
 
@@ -368,7 +378,7 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 | RF08 / HU08 Ofertas | 3 | Pestaña Ofertas y `GET /products/offers` | `api.test.js`, `catalog.test.js` HU08, `utils.test.js` RF08 |
 | RF09 / HU09 Filtros | 2–3 | Categoría y tienda, combinables; mensaje si no hay coincidencias | `api.test.js`, `solid.test.js` RF09, `utils.test.js` RF09 |
 | RF10 / HU10 Guardados | 3 | Corazón en la tarjeta y botón en el detalle; lista desde la pestaña y el menú de perfil | `api.test.js` HU10, `utils.test.js` RF10, `postgres.test.js` |
-| RF11 / HU11 Administrador | 3 | `AdminPanel` + `ProductAdminService`: solo admin, validación, confirmación, mensajes y cambios inmediatos | `api.test.js` HU11, `utils.test.js` HU11 |
+| RF11 / HU11 Administrador | 3 | `AdminPanel` + `ProductAdminService`: solo admin, validación, confirmación, mensajes y cambios inmediatos. El servicio valida el alta y las ediciones parciales antes de guardar los cambios en el repositorio. | `api.test.js` HU11, `solid.test.js` HU11, `utils.test.js` HU11 |
 
 ---
 
@@ -389,6 +399,8 @@ Todos los criterios de aceptación de HU01 a HU11 están implementados (revisió
 Las pruebas del backend ejecutan el código compilado en `dist/`. Las de persistencia usan `pg-mem`.
 
 ### 8.2 Última ejecución (25-nov-2026)
+
+Verificación de los patrones del backend (26-nov-2026): backend 83/83, frontend 28/28, chequeo de tipos y compilación del backend correctos, lint correcto. La suite HTTP ejercitó los 16 endpoints. En un esquema temporal de PostgreSQL local se verificaron la carga inicial del catálogo y la recuperación de la cuenta, su reseña y su favorito tras cerrar la conexión y volver a arrancar el backend.
 
 Backend 54/54 · Frontend 11/11 · Scraper 19/19 · lint sin avisos · build correcto.
 
@@ -471,6 +483,21 @@ La auditoría de los dos lockfiles con `npm audit` y la de los requisitos del sc
 | Solo D1 y Olímpica; cuatro categorías | Definido en el alcance (2.4 y 8) | 2.4, 8 |
 
 ---
+
+### 9.1 Patrones de diseño del backend y justificación para la exposición
+
+El backend aplica un patrón creacional (Builder), cuatro estructurales (Adapter, Decorator, Facade y Proxy) y uno de comportamiento (Strategy).
+
+| Patrón y requisito | Por qué se aplicó | Cómo se comprueba |
+|---|---|---|
+| [Adapter](backend/src/data/ScrapedCatalogAdapter.ts) · RF03 | El arranque y la actualización leían el mismo JSON por separado. Ambos piden ahora tarjetas mediante `readCards()`. El adaptador lee el archivo y delega la conversión al dominio, donde se aplica el contrato de los registros del scraper. | Un archivo antiguo con campos opcionales sigue funcionando. Un archivo inválido deja disponible el catálogo anterior. [Pruebas del adaptador](backend/tests/catalogRefresh.test.js) |
+| [Builder](backend/src/domain/CatalogRefreshResultBuilder.ts) · RF03, RF06, RF10 | Una actualización produce el catálogo final, los cambios que se guardarán en PostgreSQL, las reasignaciones de ID y las estadísticas. El Builder ensambla esas salidas a partir de las decisiones de `mergeCatalog`. Así, retirar una ficha fusionada registra también el destino de sus reseñas y favoritos. | Una fusión retira el ID anterior y conserva las reseñas y los favoritos bajo el ID superviviente. [Pruebas de actualización](backend/tests/catalogRefresh.test.js) |
+| [Decorator](backend/src/services/pricePresenter.ts) · RF03, RF05, RF07, RF08 | Las pantallas necesitan tres presentaciones del precio. Dos funciones envuelven al mismo presentador: una añade precio por kg/L y otra los datos de tienda. El catálogo usa la primera, la comparación usa la segunda y el detalle combina ambas. | Un arroz de 500 g a $2.000 se muestra a $4.000/kg. Su equivalente de 1 kg a $3.600 se muestra a $3.600/kg. Cada consulta conserva sus campos y su orden. [Pruebas de precios](backend/tests/equivalence.test.js) |
+| [Facade](backend/src/services/CatalogFacade.ts) · RF03, RF05, RF07, RF08 | El controlador de productos ofrece cuatro consultas repartidas entre tres servicios. La fachada reúne listado, ofertas, comparación y detalle en una interfaz e inyecta una sola dependencia en el controlador. Cada servicio conserva sus reglas. | Las cuatro rutas devuelven la respuesta de su servicio. Se verifican también el 400 por tienda inválida y el 404 por producto inexistente. [Pruebas HTTP](backend/tests/httpBoundary.test.js) |
+| [Proxy](backend/src/services/EquivalenceIndexProxy.ts) · RF03, RF07, RF08 | Catálogo y ofertas consultan el mismo índice de equivalencias. El proxy implementa `getIndex()`, reutiliza el resultado de la versión vigente y delega el cálculo cuando cambia el catálogo. El patrón hace explícita y comprobable la caché que ya existía. | Listado y ofertas comparten un cálculo. Al cambiar un precio de $3.600 a $3.300, ambas consultas muestran el valor nuevo con una sola reconstrucción. [Prueba de invalidación](backend/tests/catalogRefresh.test.js) |
+| [Strategy](backend/src/domain/productFilters.ts) · RF04, RF08, RF09 | Búsqueda, categoría, tienda y oferta son operaciones independientes. `ProductFilterStrategy` formaliza el mecanismo existente y permite elegir su combinación: el catálogo usa las cuatro y la comparación usa las tres primeras. | Una estrategia adicional se inyecta en el servicio. Cada filtro recibe el resultado del anterior y el primer mensaje aplicable explica por qué la lista está vacía. [Pruebas de filtros](backend/tests/solid.test.js) |
+
+Un ejemplo para la demostración es seguir un cambio de precio desde el scraper hasta la pantalla. El Adapter lee las nuevas tarjetas, el Builder reúne los cambios y el Proxy reconstruye las equivalencias en la siguiente consulta. Al abrir el detalle, los decoradores presentan el precio actualizado junto con la tienda y el valor por kg/L.
 
 ## 10. Límites conocidos
 

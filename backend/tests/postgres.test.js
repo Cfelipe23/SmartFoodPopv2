@@ -6,6 +6,7 @@ const { newDb } = require('pg-mem');
 const { PostgresPersistence } = require('../dist/data/PostgresPersistence');
 const { bootstrapContainer, buildContainer } = require('../dist/container');
 const { createInMemoryStore } = require('../dist/data/inMemoryStore');
+const { NoopPersistence } = require('../dist/data/persistence');
 
 // PostgreSQL emulado en memoria: valida el esquema SQL y las consultas sin depender de un servidor externo.
 // pg-mem no soporta la precisión de DECIMAL(p, s); el resto del esquema real se usa tal cual.
@@ -16,6 +17,29 @@ function createPersistence(logger = { log() {}, error: console.error }) {
 }
 const quietLogger = { log() {}, warn() {} };
 const scrapedPath = path.join(__dirname, 'fixtures/scraped_sample.json');
+
+test('sin configuración el arranque en memoria carga el catálogo inicial', async () => {
+  const persistence = PostgresPersistence.fromEnv({});
+  assert.equal(persistence, null);
+  const container = await bootstrapContainer({ persistence, scrapedPath, logger: quietLogger });
+  assert.equal(container.storage, 'memory');
+  assert.ok(container.persistence instanceof NoopPersistence);
+  assert.deepEqual(container.store.products, buildContainer({ scrapedPath, logger: quietLogger }).store.products);
+  assert.ok(container.store.products.length > 0);
+});
+
+test('PostgreSQL: acepta URL o parámetros de conexión y descarta configuración incompleta', async () => {
+  assert.equal(PostgresPersistence.fromEnv({ PGHOST: 'localhost' }), null);
+  for (const config of [
+    { DATABASE_URL: 'postgres://localhost/catalogo' },
+    { PGHOST: 'localhost', PGUSER: 'demo', PGPASSWORD: 'demo', PGPORT: 5432, PGDATABASE: 'catalogo' }
+  ]) {
+    const persistence = PostgresPersistence.fromEnv(config);
+    assert.ok(persistence instanceof PostgresPersistence);
+    assert.equal(persistence.storage, 'postgres');
+    await persistence.close();
+  }
+});
 
 // pg-mem falla con "CREATE TABLE IF NOT EXISTS" sobre tablas ya creadas (PostgreSQL real no);
 // en un "reinicio" simulado el esquema ya existe, así que se omite init().
@@ -44,6 +68,7 @@ test('PostgreSQL: el esquema se crea y el catálogo inicial se guarda y se vuelv
 test('PostgreSQL: usuarios, reseñas, favoritos y cambios del admin sobreviven a un reinicio', async () => {
   const persistence = createPersistence();
   const first = await bootstrapContainer({ persistence, logger: quietLogger, scrapedPath, reseedCatalog: false });
+  assert.equal(first.storage, 'postgres');
 
   const session = await first.authService.register({ name: 'Persistente', email: 'persist@example.com', password: 'Secreta123' });
   const product = first.store.products[0];

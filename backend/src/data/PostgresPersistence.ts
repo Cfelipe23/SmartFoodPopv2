@@ -10,7 +10,7 @@ import type { CategoryRow, FavoriteRow, ProductPriceRow, ProductRow, ReviewRow, 
 const SCHEMA_PATH = join(__dirname, 'schema.sql');
 type SqlParameters = (string | number | boolean | null | undefined)[];
 
-interface PostgresEnv {
+export interface PostgresEnv {
   DATABASE_URL?: string;
   PGHOST?: string;
   PGUSER?: string;
@@ -61,6 +61,7 @@ function snapshotForQueue<Data extends Product | Product[]>(value: Data): Data {
 // Lectura: el estado se carga de la base al arrancar. Escritura: cada cambio se encola
 // y se ejecuta en orden; los errores se registran sin tumbar la petición HTTP.
 export class PostgresPersistence implements CatalogPersistence {
+  readonly storage = 'postgres';
   readonly pool: PgPool;
   readonly logger: Pick<Console, 'error'>;
   readonly schemaSql: string | null;

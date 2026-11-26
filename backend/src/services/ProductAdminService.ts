@@ -7,8 +7,9 @@ import type FavoriteRepository = require('../repositories/FavoriteRepository');
 import type ProductRepository = require('../repositories/ProductRepository');
 import type ReviewRepository = require('../repositories/ReviewRepository');
 
-const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
 const MAX_NAME_LENGTH = 255;
+const DEFAULT_UNIT = '1 Unidad';
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
 const MAX_DESCRIPTION_LENGTH = 2000;
 
 type RawProduct = Partial<Record<keyof CreateProductInput, unknown>>;
@@ -110,7 +111,7 @@ class ProductAdminService {
       name: this.validateName(data.name),
       description: this.validateDescription(data.description),
       category_id: this.validateCategory(data.category_id),
-      unit: String(data.unit || '').trim() || '1 Unidad',
+      unit: String(data.unit || '').trim() || DEFAULT_UNIT,
       image_url: this.validateImage(data.image_url),
       prices: this.validatePrices(data.prices)
     });
@@ -118,14 +119,17 @@ class ProductAdminService {
 
   update(id: unknown, data: RawProduct = {}): Product | null {
     const numericId = Number(id);
-    if (!this.productRepository.findById(numericId)) return null;
+    const existing = this.productRepository.findById(numericId);
+    if (!existing) return null;
     const changes: Partial<Omit<Product, 'id'>> = {};
     if (data.name !== undefined) changes.name = this.validateName(data.name);
     if (data.description !== undefined) changes.description = this.validateDescription(data.description);
     if (data.category_id !== undefined) changes.category_id = this.validateCategory(data.category_id);
-    if (data.unit !== undefined) changes.unit = String(data.unit).trim() || '1 Unidad';
+    if (data.unit !== undefined) changes.unit = String(data.unit).trim() || DEFAULT_UNIT;
     if (data.image_url !== undefined) changes.image_url = this.validateImage(data.image_url);
-    if (data.prices !== undefined) changes.prices = this.validatePrices(data.prices);
+    changes.prices = data.prices === undefined
+      ? existing.prices.map(price => ({ ...price }))
+      : this.validatePrices(data.prices);
     return this.productRepository.update(numericId, changes);
   }
 

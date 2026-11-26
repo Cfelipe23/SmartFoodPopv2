@@ -12,6 +12,27 @@ async function startApp(t, services) {
   return 'http://127.0.0.1:' + server.address().port;
 }
 
+test('HTTP: las cuatro rutas públicas del catálogo conservan las respuestas de sus servicios', async t => {
+  const services = buildContainer({ loadCatalog: false });
+  const url = await startApp(t, services) + '/api/products';
+  const query = { store: 'd1' };
+  const id = services.store.products[0].id;
+  const cases = [
+    ['?store=d1', 200, services.productService.list(query)],
+    ['/offers', 200, services.productService.listOffers()],
+    ['/compare?store=d1', 200, services.productComparisonService.compare(query)],
+    ['/' + id, 200, services.productDetailService.getDetail(id)],
+    ['?store=inexistente', 400, { error: 'Tienda no válida: inexistente' }],
+    ['/compare?store=inexistente', 400, { error: 'Tienda no válida: inexistente' }],
+    ['/0', 404, { error: 'Producto no encontrado' }]
+  ];
+  for (const [path, status, expected] of cases) {
+    const response = await fetch(url + path);
+    assert.equal(response.status, status, path);
+    assert.deepEqual(await response.json(), JSON.parse(JSON.stringify(expected)), path);
+  }
+});
+
 test('HTTP: CORS, autenticación y rol se aplican en orden al panel de administración', async t => {
   const services = buildContainer({ loadCatalog: false });
   const secret = 'fixture-de-autorizacion';

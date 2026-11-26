@@ -1,44 +1,42 @@
 import type { CatalogProduct, CatalogResponse, OffersResponse, PriceWithUnit } from '../contracts/api';
 import type { Product, ProductEquivalence, ProductPrice } from '../domain/entities';
 import { defaultProductFilters, applyFilters, buildEmptyMessage } from '../domain/productFilters';
-import type { ProductFilterQuery } from '../domain/productFilters';
-import { analysisOf, computeUnitPrice, buildEquivalenceIndex } from '../domain/productEquivalence';
+import type { ProductFilterQuery, ProductFilterStrategy } from '../domain/productFilters';
+import type { PricePresenter } from './pricePresenter';
+import type { EquivalenceIndexProvider } from './EquivalenceIndexProxy';
 import type CatalogRepository = require('../repositories/CatalogRepository');
 import type ProductRepository = require('../repositories/ProductRepository');
 
 interface ProductServiceOptions {
-  productRepository: Pick<ProductRepository, 'findAll' | 'version'>;
+  productRepository: Pick<ProductRepository, 'findAll'>;
+  equivalences: EquivalenceIndexProvider;
+  unitPrice: PricePresenter<PriceWithUnit>;
   catalogRepository: Pick<CatalogRepository, 'getStores' | 'getCategories'>;
-  filters?: readonly (typeof defaultProductFilters)[number][];
+  filters?: readonly ProductFilterStrategy[];
 }
 
 // RF03 (catálogo), RF08 (ofertas) y RF07 (cada tarjeta trae su comparación con la otra tienda).
 class ProductService {
   readonly productRepository: ProductServiceOptions['productRepository'];
   readonly catalogRepository: ProductServiceOptions['catalogRepository'];
-  readonly filters: readonly (typeof defaultProductFilters)[number][];
-  equivalenceCache: { version: number | null; index: Map<number, ProductEquivalence> | null };
+  readonly filters: readonly ProductFilterStrategy[];
+  private readonly equivalences: EquivalenceIndexProvider;
+  private readonly unitPrice: PricePresenter<PriceWithUnit>;
 
-  constructor({ productRepository, catalogRepository, filters = defaultProductFilters }: ProductServiceOptions) {
+  constructor({ productRepository, catalogRepository, equivalences, unitPrice, filters = defaultProductFilters }: ProductServiceOptions) {
     this.productRepository = productRepository;
     this.catalogRepository = catalogRepository;
     this.filters = filters;
-    this.equivalenceCache = { version: null, index: null };
+    this.equivalences = equivalences;
+    this.unitPrice = unitPrice;
   }
 
-  // Las equivalencias se recalculan solo cuando cambia el catálogo.
-  getEquivalenceIndex(): Map<number, ProductEquivalence> {
-    const version = this.productRepository.version;
-    const cached = this.equivalenceCache.index;
-    if (this.equivalenceCache.version === version && cached) return cached;
-    const index = buildEquivalenceIndex(this.productRepository.findAll());
-    this.equivalenceCache = { version, index };
-    return index;
+  getEquivalenceIndex(): ReadonlyMap<number, ProductEquivalence> {
+    return this.equivalences.getIndex();
   }
 
   withUnitPrices(product: Product, prices: readonly ProductPrice[] = product.prices || []): PriceWithUnit[] {
-    const analysis = analysisOf(product);
-    return prices.map(price => ({ ...price, unit_price: computeUnitPrice(price.price, analysis) }));
+    return prices.map(price => this.unitPrice(product, price));
   }
 
   // Producto + precios con precio por kg/L + equivalente en otra tienda (si existe).
