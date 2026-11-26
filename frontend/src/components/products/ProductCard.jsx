@@ -1,27 +1,23 @@
-import React from 'react';
-import { Heart, Tag, Eye, TrendingDown, Star } from 'lucide-react';
+import { Heart, Eye, TrendingDown, Scale } from 'lucide-react';
+import { formatCop, discountPercent } from '../../utils/format';
+import { buildComparison } from '../../utils/comparison';
 
-export default function ProductCard({ 
-  product, 
-  stores = [], 
-  onSelectProduct, 
-  isFavorite, 
-  onToggleFavorite 
-}) {
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
+
+export default function ProductCard({ product, stores = [], onSelectProduct, isFavorite, onToggleFavorite }) {
   const { id, name, unit, image_url, prices = [] } = product;
-
-  // Calculate lowest price & best store
-  const sortedPrices = [...prices].sort((a, b) => a.price - b.price);
-  const lowestPrice = sortedPrices.length > 0 ? sortedPrices[0] : null;
-  const lowestStore = lowestPrice ? stores.find(s => s.id === lowestPrice.store_id) : null;
-  const hasOffer = prices.some(p => p.is_offer);
+  const comparison = buildComparison(product, stores);
+  const storeOf = (storeId) => stores.find(s => s.id === storeId);
+  const hasOffer = prices.some(p => p.is_offer) || comparison.rows.some(row => row.is_offer);
+  const bestStore = comparison.best ? storeOf(comparison.best.store_id) : null;
+  const measureLabel = comparison.measure ? `por ${comparison.measure}` : '';
 
   return (
     <div className="product-card">
-      <div 
+      <div
         className="card-img-container clickable-img"
         onClick={() => onSelectProduct(product)}
-        title={`Ver comparativa completa de ${name}`}
+        title={`Ver detalle de ${name}`}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -31,34 +27,33 @@ export default function ProductCard({
           }
         }}
       >
-        <img 
-          src={image_url} 
-          alt={name} 
-          className="card-img" 
+        <img
+          src={image_url}
+          alt={name}
+          className="card-img"
+          loading="lazy"
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
+            e.currentTarget.src = FALLBACK_IMAGE;
           }}
         />
-        
-        {hasOffer && (
-          <div className="offer-badge">
-            🔥 En Oferta
-          </div>
-        )}
+
+        {hasOffer && <div className="offer-badge">🔥 En Oferta</div>}
 
         <div className="img-hover-overlay">
           <Eye size={20} color="#ffffff" />
           <span>Ver detalles</span>
         </div>
 
-        <button 
+        <button
           className={`favorite-btn ${isFavorite ? 'active' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             onToggleFavorite(id);
           }}
           title={isFavorite ? 'Quitar de guardados' : 'Guardar producto'}
+          aria-label={isFavorite ? 'Quitar de guardados' : 'Guardar producto'}
+          aria-pressed={isFavorite}
         >
           <Heart size={18} fill={isFavorite ? '#ef4444' : 'none'} />
         </button>
@@ -68,48 +63,74 @@ export default function ProductCard({
         <div className="card-unit">{unit}</div>
         <h3 className="card-title">{name}</h3>
 
-        {/* Price Comparison Summary Box */}
         <div className="price-comparison-box">
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.2rem' }}>
-            Comparativa por Tienda:
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            {comparison.comparable && <Scale size={13} />}
+            {comparison.comparable ? 'Comparativa por tienda:' : 'Precio en tienda:'}
           </div>
 
-          {prices.map((pr) => {
-            const store = stores.find(s => s.id === pr.store_id);
-            const isLowest = lowestPrice && pr.store_id === lowestPrice.store_id;
+          {comparison.rows.length === 0 && (
+            <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Sin precio disponible</div>
+          )}
+
+          {comparison.rows.map((row) => {
+            const store = storeOf(row.store_id);
+            const isBest = comparison.best && comparison.best.key === row.key;
+            const discount = row.is_offer ? discountPercent(row.previous_price, row.price) : 0;
 
             return (
-              <div key={pr.store_id} className="price-row">
-                <span className="store-name-tag">
-                  <span>{store ? store.logo : '🏬'}</span>
-                  <span>{store ? store.name : 'Tienda'}</span>
-                </span>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  {pr.is_offer && (
-                    <span style={{ fontSize: '0.7rem', color: '#ea580c', background: '#ffedd5', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 700 }}>
-                      OFERTA
-                    </span>
-                  )}
-                  <span className={`price-val ${isLowest ? 'lowest' : ''}`}>
-                    ${pr.price.toLocaleString('es-CO')}
+              <div key={row.key} style={{ marginBottom: '0.15rem' }}>
+                <div className="price-row">
+                  <span className="store-name-tag">
+                    <span>{store ? store.logo : '🏬'}</span>
+                    <span>{store ? store.name : 'Tienda'}</span>
                   </span>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    {row.is_offer && (
+                      <span style={{ fontSize: '0.7rem', color: '#ea580c', background: '#ffedd5', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 700 }}>
+                        {discount > 0 ? `-${discount}%` : 'OFERTA'}
+                      </span>
+                    )}
+                    {row.is_offer && row.previous_price > row.price && (
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8', textDecoration: 'line-through' }}>{formatCop(row.previous_price)}</span>
+                    )}
+                    <span className={`price-val ${isBest ? 'lowest' : ''}`}>{formatCop(row.price)}</span>
+                  </div>
                 </div>
+
+                {(row.isEquivalent || (comparison.differentSizes && row.unit_price)) && (
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', paddingLeft: '1.4rem', lineHeight: 1.3 }}>
+                    {row.isEquivalent && <div>≈ {row.name} · {row.unit}</div>}
+                    {comparison.differentSizes && row.unit_price && (
+                      <div style={{ color: isBest ? '#059669' : '#64748b', fontWeight: isBest ? 700 : 500 }}>
+                        {formatCop(row.unit_price.value)} {measureLabel}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
+
+          {comparison.missingStores.length > 0 && (
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+              Sin producto equivalente en {comparison.missingStores.map(store => store.name).join(', ')}
+            </div>
+          )}
         </div>
 
-        {lowestStore && (
+        {comparison.best && bestStore && (
           <div style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '1rem' }}>
-            <TrendingDown size={14} /> Mejor precio en {lowestStore.name}
+            <TrendingDown size={14} />
+            {comparison.differentSizes ? `Más económico ${measureLabel}: ${bestStore.name}` : `Mejor precio en ${bestStore.name}`}
           </div>
         )}
 
         <div className="card-footer-btns">
           <button className="btn-detail" onClick={() => onSelectProduct(product)}>
-            <Eye size={16} inline="true" style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-            Ver Comparación Completa & Reseñas
+            <Eye size={16} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+            {comparison.comparable ? 'Ver comparación y reseñas' : 'Ver detalle y reseñas'}
           </button>
         </div>
       </div>

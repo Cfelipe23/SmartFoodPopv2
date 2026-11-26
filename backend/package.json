@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "db:check": "node scripts/check-db.js",
+    "db:setup": "node scripts/setup-db.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,5 +18,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "pg-mem": "^3.0.14"
   }
 }

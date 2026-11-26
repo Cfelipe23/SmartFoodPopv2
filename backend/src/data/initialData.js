@@ -6,15 +6,15 @@ const initialStores = [
   { id: 2, name: 'Supermercado Olímpica', code: 'olimpica', logo: '🛒', city: 'Popayán', address: 'Carrera 9 # 18N-12, Catay' }
 ];
 
+// Categorías del alcance (documento, sección 6.1 ítem 8).
 const initialCategories = [
   { id: 1, name: 'Granos y Básicos', slug: 'granos-y-basicos', icon: '🌾' },
-  { id: 2, name: 'Lácteos y Huevos', slug: 'lacteos-y-huevos', icon: '🥛' },
+  { id: 2, name: 'Lácteos', slug: 'lacteos', icon: '🥛' },
   { id: 3, name: 'Aseo del Hogar', slug: 'aseo-del-hogar', icon: '🧹' },
-  { id: 4, name: 'Aceites y Condimentos', slug: 'aceites-y-condimentos', icon: '🫒' },
-  { id: 5, name: 'Bebidas y Pasabocas', slug: 'bebidas-y-pasabocas', icon: '🧃' }
+  { id: 4, name: 'Otros', slug: 'otros', icon: '🛍️' }
 ];
 
-let initialProducts = [
+const initialProducts = [
   {
     id: 1,
     name: 'Arroz Blanco Seleccionado (Diana / Albar)',
@@ -43,7 +43,7 @@ let initialProducts = [
     id: 3,
     name: 'Huevos Rojos Tipo A / AA X30 (Sol Naciente / Kikes)',
     description: 'Cubeta de 30 huevos frescos clasificados producidos en la región.',
-    category_id: 2,
+    category_id: 4,
     unit: 'Cubeta x30 unidades',
     image_url: 'https://d1tiendas.vtexassets.com/arquivos/ids/199498/huevo-tipo-a-sol-naciente-30und-12000344-01.png.png?v=639179641011170000',
     prices: [
@@ -55,7 +55,7 @@ let initialProducts = [
     id: 4,
     name: 'Aceite Vegetal / Girasol 900ml (Imatá / Medalla de Oro)',
     description: 'Aceite 100% puro libre de colesterol para preparaciones cotidianas.',
-    category_id: 4,
+    category_id: 1,
     unit: 'Botella 900 ml',
     image_url: 'https://d1tiendas.vtexassets.com/arquivos/ids/201946/aceite-vegetal-imata-900ml-12004358-01.png.png?v=639179698978470000',
     prices: [
@@ -89,26 +89,22 @@ let initialProducts = [
   }
 ];
 
-let initialUsers = [
-  { id: 1, name: 'Usuario Demo Popayán', email: 'usuario@popayan.com', password: 'user123', role: 'consumer' },
-  { id: 2, name: 'Administrador SmartFood', email: 'admin@smartfood.com', password: 'admin123', role: 'admin' }
+// Cuentas de demostración. Las contraseñas se toman del entorno (o valores de desarrollo)
+// y SIEMPRE se guardan como hash bcrypt (ver inMemoryStore.js).
+const demoUsers = [
+  { id: 1, name: 'Usuario Demo Popayán', email: 'usuario@popayan.com', role: 'consumer', passwordEnv: 'SEED_USER_PASSWORD', defaultPassword: 'user123' },
+  { id: 2, name: 'Administrador SmartFood', email: 'admin@smartfood.com', role: 'admin', passwordEnv: 'SEED_ADMIN_PASSWORD', defaultPassword: 'admin123' }
 ];
 
-let initialReviews = [
-  { id: 1, user_id: 1, user_name: 'Carlos Muñoz', product_id: 1, rating: 5, comment: 'Excelente calidad de arroz y en D1 es donde mejor precio tiene en Popayán.', created_at: '2026-09-01T10:30:00Z' },
-  { id: 2, user_id: 1, user_name: 'María Fernández', product_id: 3, rating: 4, comment: 'Los huevos son muy frescos, pero a veces en la Olímpica están más grandes.', created_at: '2026-09-04T14:15:00Z' }
-];
-
-let initialFavorites = [
-  { id: 1, user_id: 1, product_id: 1 },
-  { id: 2, user_id: 1, product_id: 3 }
-];
+// Las reseñas y favoritos los generan los usuarios reales; no se siembran datos inventados.
+const initialReviews = [];
+const initialFavorites = [];
 
 module.exports = {
   initialStores,
   initialCategories,
   initialProducts,
-  initialUsers,
+  demoUsers,
   initialReviews,
   initialFavorites
 };

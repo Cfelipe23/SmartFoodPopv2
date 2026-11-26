@@ -54,6 +54,12 @@ VTEX_STORES = [
         "base_url": "https://www.olimpica.com",
         "queries": list(_DEFAULT_QUERIES),
         "use_full_catalog": False,
+        # Además de las búsquedas base, se consulta con los tipos de producto que tiene D1
+        # para que la comparación entre tiendas cubra la mayor parte del catálogo.
+        "queries_from_store": "d1",
+        # Solo el supermercado: Olímpica también vende colchones, electrodomésticos, juguetes, etc.
+        "target_top_categories": ["Supermercado"],
+        "max_derived_queries": 400,
     },
     {
         "store_name": "d1",
@@ -64,7 +70,8 @@ VTEX_STORES = [
     },
 ]
 
-# Categorías de primer nivel de D1 a conservar (alimentos y canasta básica).
+# Categorías de D1 a conservar: alimentos y canasta básica, más las subcategorías de aseo del hogar,
+# necesarias para la categoría "Aseo del hogar" del alcance del proyecto.
 # Comparación case-insensitive y sin tildes contra los segmentos de la ruta de categoría.
 D1_TARGET_CATEGORIES = [
     "Despensa",
@@ -74,5 +81,11 @@ D1_TARGET_CATEGORIES = [
     "Panadería y repostería",
     "Carnes Frías y delikatessen",
     "Frutas y verduras",
+    # Subcategorías de aseo del hogar (Hogar > Aseo y limpieza); se excluyen pilas, bombillos y desechables.
+    "Cuidado de la ropa",
+    "Cuidado de superficies y cocina",
+    "Cuidado del aire",
+    "Accesorios limpieza",
+    "Organización aseo y lavandería",
 ]
 
