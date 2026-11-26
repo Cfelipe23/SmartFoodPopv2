@@ -176,6 +176,18 @@ Se guardan con hash. Los botones de acceso rápido del login solo aparecen en de
 
 ---
 
+### 3.4 Probar desde el celular: `compartir.ps1`
+
+`powershell -ExecutionPolicy Bypass -File compartir.ps1` publica la app por HTTPS con un túnel rápido de Cloudflare (`cloudflared` en `%LOCALAPPDATA%\cloudflared\`), sin cuenta ni configuración de red.
+
+1. Instala dependencias si faltan y, si no existe `backend/.env`, ejecuta `db:setup` como `start.bat`.
+2. Arranca el backend en la ventana «SmartFoodPop backend» (`npm run build` y `npm start`), o reutiliza el que ya responda en `:5000`.
+3. Compila el frontend con `VITE_API_URL=/api` y lo sirve con `vite preview` en `:4173` (ventana «SmartFoodPop frontend»). `frontend/vite.config.js` reenvía `/api` al backend y solo acepta los dominios `*.trycloudflare.com` además de `localhost`. Es el build de producción, así que no muestra los botones de acceso rápido con las cuentas demo.
+4. Abre `tunel-vigilante.ps1` (ventana «SmartFoodPop tunel»). Deja el enlace en `ENLACE_CELULAR.txt` y, si se cae el túnel, abre otro. Solo cierra su propio `cloudflared`, así que puede convivir con el túnel de otro proyecto.
+5. Si existe `aviso-celular.txt` (`ntfy=TEMA`), envía cada enlace nuevo como notificación de ntfy. La primera vez se copia el de RutaPopa, que usa el mismo tema.
+
+`ENLACE_CELULAR.txt`, `tunel.log` y `aviso-celular.txt` están en `.gitignore`. El nombre del tema de ntfy funciona como contraseña: quien lo conozca recibe los enlaces. Cualquiera con el enlace puede usar la app, y las cuentas demo tienen contraseñas conocidas (sección 10).
+
 ## 4. Arquitectura
 
 ```mermaid

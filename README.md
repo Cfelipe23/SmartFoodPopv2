@@ -73,6 +73,14 @@ Puedes registrar una cuenta nueva desde **Ingresar / Registro**. El formulario m
 start.bat --no-scrape        # o: npm run dev -- --no-scrape
 ```
 
+### Probar desde el celular
+
+```powershell
+powershell -ExecutionPolicy Bypass -File compartir.ps1
+```
+
+Publica la app con un enlace `https://…trycloudflare.com` que se abre en cualquier celular. Necesita [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) en `%LOCALAPPDATA%\cloudflared\`. El enlace queda en `ENLACE_CELULAR.txt` y, si configuras `aviso-celular.txt` con `ntfy=TU-TEMA`, llega como notificación. Detalles en `AGENTS.md`, sección 3.4.
+
 ## Problemas frecuentes
 
 | Síntoma | Solución |

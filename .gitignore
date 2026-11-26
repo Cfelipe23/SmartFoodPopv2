@@ -18,3 +18,8 @@ scraper/output/*.tmp
 # Configuración local del editor (contiene rutas de cada equipo)
 .vscode/
 pyrightconfig.json
+
+# Túnel para el celular (compartir.ps1): enlace, registro y tema secreto de ntfy
+ENLACE_CELULAR.txt
+tunel.log
+aviso-celular.txt
