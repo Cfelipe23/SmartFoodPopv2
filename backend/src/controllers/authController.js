@@ -1,36 +1,27 @@
-const { AuthError } = require('../services/AuthError');
+const AuthError = require('../services/AuthError');
+
+function respondWithError(res, error, fallbackMessage) {
+  if (error instanceof AuthError) return res.status(error.status).json({ error: error.message });
+  console.error(fallbackMessage, error);
+  return res.status(500).json({ error: fallbackMessage });
+}
 
 module.exports = (authService) => ({
   async register(req, res) {
     try {
-      const { name, email, password } = req.body;
-      const session = await authService.register({ name, email, password });
+      const session = await authService.register(req.body);
       res.status(201).json(session);
     } catch (error) {
-      if (error instanceof AuthError) return res.status(error.status).json({ error: error.message });
-      res.status(500).json({ error: 'Error interno en el servidor al registrar' });
+      respondWithError(res, error, 'Error interno en el servidor al registrar');
     }
   },
 
   async login(req, res) {
     try {
-      const { email, password } = req.body;
-      const session = await authService.login({ email, password });
+      const session = await authService.login(req.body);
       res.json(session);
     } catch (error) {
-      if (error instanceof AuthError) return res.status(error.status).json({ error: error.message });
-      res.status(500).json({ error: 'Error al iniciar sesión' });
-    }
-  },
-
-  async resetPassword(req, res) {
-    try {
-      const { email, newPassword } = req.body;
-      const session = await authService.resetPassword({ email, newPassword });
-      res.json(session);
-    } catch (error) {
-      if (error instanceof AuthError) return res.status(error.status).json({ error: error.message });
-      res.status(500).json({ error: 'Error al restablecer la contraseña' });
+      respondWithError(res, error, 'Error al iniciar sesión');
     }
   },
 

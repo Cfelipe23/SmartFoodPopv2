@@ -688,3 +688,11 @@ body {
     max-width: 100%;
   }
 }
+
+/* Indicador de carga */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1s linear infinite;
+}

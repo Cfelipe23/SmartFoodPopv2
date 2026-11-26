@@ -197,26 +197,39 @@ class VtexSource(StoreSource):
             "offer_desc": offer_desc,
             "product_id": str(raw.get("productId") or ""),
             "scraped_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-            "source_url": f"{self.base_url}/{raw.get('linkText', '')}",
+            # En VTEX la página del producto es /{linkText}/p (sin /p: 404 en D1, búsqueda vacía en Olímpica).
+            "source_url": f"{self.base_url}/{raw['linkText']}/p" if raw.get("linkText") else "",
             "sku_id": str((item.get("itemId") if item else "") or ""),
         }
 
     # ---------- API pública ----------
     def fetch(self) -> list[dict[str, Any]]:
+        return self.fetch_queries(self.queries)
+
+    def fetch_queries(
+        self,
+        queries: list[str],
+        max_pages: Optional[int] = None,
+        pause_between_queries: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Consulta cada búsqueda; `max_pages` limita las páginas por búsqueda (None = todas)."""
         results: list[dict[str, Any]] = []
         seen: set[str] = set()
-        for query in self.queries:
+        for query in queries:
             offset = 0
+            pages = 0
             while True:
                 data = self._request_page(query, offset, offset + PAGE_SIZE - 1)
                 if data is None:
                     break
+                pages += 1
                 raw_products = data.get("products") or []
                 total = _safe_int(data.get("recordsFiltered"))
                 for p in raw_products:
                     normalized = self._normalize(p)
                     if normalized is None:
                         continue
+                    normalized["_raw_categories"] = p.get("categories") or []
                     pid = normalized.get("product_id") or normalized["name"]
                     if pid in seen:
                         continue
@@ -227,8 +240,12 @@ class VtexSource(StoreSource):
                     break
                 if total is not None and offset >= total:
                     break
+                if max_pages is not None and pages >= max_pages:
+                    break
                 time.sleep(SLEEP_BETWEEN_PAGES)
             logger.info("[%s] '%s': acumulados %d únicos", self.store_name, query, len(results))
+            if pause_between_queries:
+                time.sleep(pause_between_queries)
         return results
 
     def _request_page_raw(self, params: dict, max_retries: int = 3, backoff: float = 2.0):

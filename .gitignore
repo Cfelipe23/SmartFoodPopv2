@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .env
 .env.*
 !.env.example
@@ -7,3 +7,14 @@ build/
 __pycache__/
 .venv/
 venv/
+
+# Cookies de sesión regionales del scraper (se regeneran al ejecutar el scraper)
+scraper/cookies/
+
+# Respaldo automático del scraper
+scraper/output/*.bak
+scraper/output/*.tmp
+
+# Configuración local del editor (contiene rutas de cada equipo)
+.vscode/
+pyrightconfig.json

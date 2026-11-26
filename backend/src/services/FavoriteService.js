@@ -1,3 +1,6 @@
+const { httpError } = require('../domain/httpError');
+
+// RF10: productos guardados por usuario.
 class FavoriteService {
   constructor({ favoriteRepository, productRepository }) {
     this.favoriteRepository = favoriteRepository;
@@ -5,12 +8,16 @@ class FavoriteService {
   }
 
   listProductsForUser(userId) {
-    const favProductIds = this.favoriteRepository.findByUserId(userId).map(f => f.product_id);
-    return this.productRepository.findAll().filter(p => favProductIds.includes(p.id));
+    const favProductIds = new Set(this.favoriteRepository.findByUserId(userId).map(f => f.product_id));
+    return this.productRepository.findAll().filter(p => favProductIds.has(p.id));
   }
 
   toggle(userId, productId) {
-    return this.favoriteRepository.toggle(userId, productId);
+    const numericProductId = Number.parseInt(productId, 10);
+    if (!numericProductId || !this.productRepository.findById(numericProductId)) {
+      throw httpError(404, 'Producto no encontrado');
+    }
+    return this.favoriteRepository.toggle(userId, numericProductId);
   }
 }
 

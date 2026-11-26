@@ -1,40 +1,26 @@
+function respondWithError(res, error, fallbackMessage) {
+  if (error.status) return res.status(error.status).json({ error: error.message });
+  console.error(fallbackMessage, error);
+  return res.status(500).json({ error: fallbackMessage });
+}
+
 module.exports = (reviewService) => ({
   listByProduct(req, res) {
     try {
-      const productId = parseInt(req.params.productId);
+      const productId = parseInt(req.params.productId, 10);
       res.json({ reviews: reviewService.listByProduct(productId) });
     } catch (error) {
-      res.status(500).json({ error: 'Error al consultar reseñas' });
+      respondWithError(res, error, 'Error al consultar reseñas');
     }
   },
 
   create(req, res) {
     try {
-      const { product_id, rating, comment } = req.body;
-
-      if (!product_id || !rating || !comment) {
-        return res.status(400).json({ error: 'La calificación y el comentario son requeridos' });
-      }
-
-      const numericRating = parseInt(rating);
-      if (numericRating < 1 || numericRating > 5) {
-        return res.status(400).json({ error: 'La calificación debe estar entre 1 y 5 estrellas' });
-      }
-
-      const newReview = reviewService.add({
-        user_id: req.user.id,
-        user_name: req.user.name,
-        product_id,
-        rating: numericRating,
-        comment
-      });
-
-      res.status(201).json({
-        message: 'Reseña publicada con éxito',
-        review: newReview
-      });
+      const { product_id, rating, comment } = req.body || {};
+      const review = reviewService.add({ user_id: req.user.id, user_name: req.user.name, product_id, rating, comment });
+      res.status(201).json({ message: 'Reseña publicada con éxito', review });
     } catch (error) {
-      res.status(500).json({ error: 'Error al publicar reseña' });
+      respondWithError(res, error, 'Error al publicar reseña');
     }
   }
 });
