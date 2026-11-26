@@ -1,25 +1,40 @@
-const { BcryptPasswordHasher } = require('./PasswordHasher');
-const AuthError = require('./AuthError');
+import type { LoginInput, PublicUser, RegisterInput, SessionResponse } from '../contracts/api';
+import type UserRepository = require('../repositories/UserRepository');
+import AuthError = require('./AuthError');
+import { BcryptPasswordHasher } from './PasswordHasher';
+import type TokenService = require('./TokenService');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
 
+interface AuthOptions {
+  userRepository: Pick<UserRepository, 'findByEmail' | 'add'>;
+  passwordHasher?: Pick<BcryptPasswordHasher, 'hash' | 'verify'>;
+  tokenService: Pick<TokenService, 'sign'>;
+}
+
 // RF01 (registro) y RF02 (inicio de sesión): autenticación propia con correo y contraseña.
-class AuthService {
-  constructor({ userRepository, passwordHasher = new BcryptPasswordHasher(), tokenService }) {
-    Object.assign(this, { userRepository, passwordHasher, tokenService });
+export class AuthService {
+  readonly userRepository: AuthOptions['userRepository'];
+  readonly passwordHasher: Pick<BcryptPasswordHasher, 'hash' | 'verify'>;
+  readonly tokenService: AuthOptions['tokenService'];
+
+  constructor({ userRepository, passwordHasher = new BcryptPasswordHasher(), tokenService }: AuthOptions) {
+    this.userRepository = userRepository;
+    this.passwordHasher = passwordHasher;
+    this.tokenService = tokenService;
   }
 
-  normalizeEmail(email) {
+  normalizeEmail(email: unknown): string {
     return typeof email === 'string' ? email.trim().toLowerCase() : '';
   }
 
-  buildSession(user, message) {
+  buildSession(user: PublicUser, message: string): SessionResponse {
     const token = this.tokenService.sign(user);
     return { message, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
   }
 
-  async register({ name, email, password } = {}) {
+  async register({ name, email, password }: Partial<Record<keyof RegisterInput, unknown>> = {}): Promise<SessionResponse> {
     const normalizedName = typeof name === 'string' ? name.trim() : '';
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedName || !normalizedEmail || typeof password !== 'string' || !password) {
@@ -38,7 +53,7 @@ class AuthService {
     return this.buildSession(user, 'Registro exitoso. Tu cuenta ya está habilitada.');
   }
 
-  async login({ email, password } = {}) {
+  async login({ email, password }: Partial<Record<keyof LoginInput, unknown>> = {}): Promise<SessionResponse> {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail || typeof password !== 'string' || !password) {
       throw new AuthError(400, 'Ingrese correo y contraseña');
@@ -51,4 +66,4 @@ class AuthService {
   }
 }
 
-module.exports = { AuthService, AuthError };
+export { AuthError };
